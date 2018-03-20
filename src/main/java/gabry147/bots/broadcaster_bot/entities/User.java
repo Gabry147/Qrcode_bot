@@ -1,9 +1,10 @@
-package tavonatti.stefano.bots.qrcodebot.entities;
-
-import tavonatti.stefano.bots.qrcodebot.entities.dao.QRCodeBotDao;
-import tavonatti.stefano.bots.qrcodebot.entities.extra.Role;
+package gabry147.bots.broadcaster_bot.entities;
 
 import javax.persistence.*;
+
+import gabry147.bots.broadcaster_bot.entities.dao.Broadcaster_BotDao;
+import gabry147.bots.broadcaster_bot.entities.extra.Role;
+
 import java.io.Serializable;
 import java.util.List;
 import java.util.Set;
@@ -36,20 +37,20 @@ public class User implements Serializable {
     private String thumbIdForInline;
 
     public static User getById(Long id){
-        EntityManager em= QRCodeBotDao.instance.createEntityManager();
+        EntityManager em= Broadcaster_BotDao.instance.createEntityManager();
         User u=em.find(User.class,id);
-        QRCodeBotDao.instance.closeConnections(em);
+        Broadcaster_BotDao.instance.closeConnections(em);
 
         return u;
     }
 
     public static User saveUser(User u){
-        EntityManager em=QRCodeBotDao.instance.createEntityManager();
+        EntityManager em=Broadcaster_BotDao.instance.createEntityManager();
         EntityTransaction tx=em.getTransaction();
         tx.begin();
         u=em.merge(u);
         tx.commit();
-        QRCodeBotDao.instance.closeConnections(em);
+        Broadcaster_BotDao.instance.closeConnections(em);
 
         return u;
     }

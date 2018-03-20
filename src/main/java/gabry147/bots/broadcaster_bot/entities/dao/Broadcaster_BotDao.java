@@ -1,19 +1,19 @@
-package tavonatti.stefano.bots.qrcodebot.entities.dao;
+package gabry147.bots.broadcaster_bot.entities.dao;
 
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
 
-public enum QRCodeBotDao {
+public enum Broadcaster_BotDao {
     instance;
     private EntityManagerFactory emf;
 
-    private QRCodeBotDao() {
+    private Broadcaster_BotDao() {
         if (emf!=null) {
             emf.close();
         }
-        emf = Persistence.createEntityManagerFactory("QrcodeBot");
+        emf = Persistence.createEntityManagerFactory("Broadcaster_bot");
     }
 
     public EntityManager createEntityManager() {

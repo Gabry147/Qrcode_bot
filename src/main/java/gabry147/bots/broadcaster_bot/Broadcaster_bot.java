@@ -1,20 +1,21 @@
-package tavonatti.stefano.bots.qrcodebot;
+package gabry147.bots.broadcaster_bot;
 
 import org.apache.log4j.Logger;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.Update;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
-import tavonatti.stefano.bots.qrcodebot.tasks.UpdateTask;
+
+import gabry147.bots.broadcaster_bot.tasks.UpdateTask;
 
 import java.io.*;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-public class QrCodeBot extends TelegramLongPollingBot{
+public class Broadcaster_bot extends TelegramLongPollingBot{
 
-    public static Logger logger=Logger.getLogger(QrCodeBot.class);
+    public static Logger logger=Logger.getLogger(Broadcaster_bot.class);
 
     private final static String PROPERTIES_FILE_NAME="bot_config.properties";
 
@@ -23,7 +24,7 @@ public class QrCodeBot extends TelegramLongPollingBot{
     private boolean dbLogging=false;
     private ThreadPoolExecutor executor;
 
-    public QrCodeBot(){
+    public Broadcaster_bot(){
         super();
         loadConfiguration();
 
@@ -81,7 +82,7 @@ public class QrCodeBot extends TelegramLongPollingBot{
         try {
 
             /* retrieve file inside the jar*/
-            input=QrCodeBot.class.getClassLoader().getResourceAsStream(PROPERTIES_FILE_NAME);
+            input=Broadcaster_bot.class.getClassLoader().getResourceAsStream(PROPERTIES_FILE_NAME);
             // load a properties file
             prop.load(input);
 

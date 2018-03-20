@@ -1,4 +1,4 @@
-package tavonatti.stefano.bots.qrcodebot;
+package gabry147.bots.broadcaster_bot;
 
 import org.apache.log4j.Logger;
 import org.telegram.telegrambots.ApiContextInitializer;
@@ -14,10 +14,10 @@ public class Main {
 
         TelegramBotsApi botsApi=new TelegramBotsApi();
 
-        QrCodeBot qrCodeBot=new QrCodeBot();
+        Broadcaster_bot broadcasterBot=new Broadcaster_bot();
 
         try {
-            botsApi.registerBot(qrCodeBot);
+            botsApi.registerBot(broadcasterBot);
         } catch (TelegramApiRequestException e) {
             e.printStackTrace();
             logger.error("Unable to register bot");

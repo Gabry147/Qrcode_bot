@@ -1,4 +1,4 @@
-package tavonatti.stefano.bots.qrcodebot.tasks;
+package gabry147.bots.broadcaster_bot.tasks;
 
 import com.google.zxing.*;
 import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
@@ -9,6 +9,12 @@ import com.google.zxing.datamatrix.DataMatrixWriter;
 import com.google.zxing.datamatrix.encoder.SymbolShapeHint;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.vdurmont.emoji.EmojiParser;
+
+import gabry147.bots.broadcaster_bot.Broadcaster_bot;
+import gabry147.bots.broadcaster_bot.entities.ChatEntity;
+import gabry147.bots.broadcaster_bot.entities.User;
+import gabry147.bots.broadcaster_bot.entities.extra.Role;
+
 import org.apache.log4j.Logger;
 import org.telegram.telegrambots.api.methods.AnswerInlineQuery;
 import org.telegram.telegrambots.api.methods.GetFile;
@@ -20,10 +26,6 @@ import org.telegram.telegrambots.api.objects.inlinequery.result.chached.InlineQu
 import org.telegram.telegrambots.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
-import tavonatti.stefano.bots.qrcodebot.QrCodeBot;
-import tavonatti.stefano.bots.qrcodebot.entities.ChatEntity;
-import tavonatti.stefano.bots.qrcodebot.entities.User;
-import tavonatti.stefano.bots.qrcodebot.entities.extra.Role;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -50,12 +52,12 @@ public class UpdateTask implements Runnable {
     private final static int WIDTH_DM=64;
     private final static int HEIGHT_DM=64;
 
-    private QrCodeBot qrCodeBot;
+    private Broadcaster_bot qrCodeBot;
     private Update update;
 
     private final static boolean VCARD_ENABLED=true;
 
-    public UpdateTask(QrCodeBot qrCodeBot, Update update){
+    public UpdateTask(Broadcaster_bot qrCodeBot, Update update){
         this.qrCodeBot=qrCodeBot;
         this.update=update;
     }

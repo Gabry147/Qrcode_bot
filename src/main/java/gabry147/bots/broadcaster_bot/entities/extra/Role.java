@@ -1,4 +1,4 @@
-package tavonatti.stefano.bots.qrcodebot.entities.extra;
+package gabry147.bots.broadcaster_bot.entities.extra;
 
 /**
  * The role of the user.

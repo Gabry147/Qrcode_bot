@@ -3,15 +3,15 @@
 *.iml
 *.iws
 
+# Eclipse
+.settings/
+.classpath
+/.project
+
 # Maven
 log/
 target/
 /.project
 
-
 #log files
 *.log
-
-.directory
-
-download.jpg
