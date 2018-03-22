@@ -11,7 +11,7 @@
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver" />
             <property name="javax.persistence.jdbc.user" value="${db.username}" />
             <property name="javax.persistence.jdbc.password" value="${db.password}" />
-            <!--connection url for the db--> <!--example: jdbc:postgresql://localhost:5432/qrcode_bot -->
+            <!--connection url for the db--> <!--example: jdbc:postgresql://localhost:5432/db_name -->
             <property name="javax.persistence.jdbc.url" value="${db.url}" />
             <!-- set it to ALL to see all the JPA related debugging information -->
             <property name="eclipselink.logging.level" value="DEBUG" />
