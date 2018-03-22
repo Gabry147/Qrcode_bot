@@ -1,13 +1,5 @@
 package gabry147.bots.broadcaster_bot.tasks;
 
-import com.google.zxing.*;
-import com.google.zxing.client.j2se.BufferedImageLuminanceSource;
-import com.google.zxing.client.j2se.MatrixToImageWriter;
-import com.google.zxing.common.BitMatrix;
-import com.google.zxing.common.HybridBinarizer;
-import com.google.zxing.datamatrix.DataMatrixWriter;
-import com.google.zxing.datamatrix.encoder.SymbolShapeHint;
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 import com.vdurmont.emoji.EmojiParser;
 
 import gabry147.bots.broadcaster_bot.Broadcaster_bot;
@@ -40,25 +32,15 @@ public class UpdateTask implements Runnable {
 
     private final static String CHARSET="UTF-8"; // or "ISO-8859-1"
 
-    private final static int WIDTH_QR=500;
-    private final static int HEIGHT_QR=500;
-    private final static int SIZE_THRESHOLD=250;
-
     private final static long MAX_USE_NUM=9223372036854775000L;
-    private final static String INLINE_IMG_TOCKEN="###";
 
-    private final static int MAX_FILE_SIZE=1024*20;//TODO define
-
-    private final static int WIDTH_DM=64;
-    private final static int HEIGHT_DM=64;
-
-    private Broadcaster_bot qrCodeBot;
+    private Broadcaster_bot bot;
     private Update update;
 
     private final static boolean VCARD_ENABLED=true;
 
-    public UpdateTask(Broadcaster_bot qrCodeBot, Update update){
-        this.qrCodeBot=qrCodeBot;
+    public UpdateTask(Broadcaster_bot bot, Update update){
+        this.bot=bot;
         this.update=update;
     }
 
@@ -82,215 +64,18 @@ public class UpdateTask implements Runnable {
             String[] commandSplit=splits[0].split("@");
 
             if(commandSplit.length>1){
-                if(!commandSplit[1].equals(qrCodeBot.getBotUsername())){
+                if(!commandSplit[1].equals(bot.getBotUsername())){
                     return;
                 }
             }
 
             switch (commandSplit[0]){
                 case "/start":
-                    if(splits.length>1){
-                        /*for inline mode
-                        * encode the QR and forward to original chat*/
-                        User u=User.getById(Long.valueOf(update.getMessage().getFrom().getId()));
-
-                        if(u==null){
-                            sendHelpMessage();
-                            return;
-                        }
-
-                        SendMessage waitMessage=new SendMessage();
-
-                        waitMessage.setChatId(update.getMessage().getChatId());
-                        waitMessage.setText("encoding your text...");
-
-                        qrCodeBot.sendResponse(waitMessage);
-
-
-                        SendPhoto sendPhoto=new SendPhoto();
-                        sendPhoto.setChatId(update.getMessage().getChatId());
-
-                        InputStream is=getQRInputStream(u.getTextToEncode());
-
-                        sendPhoto.setNewPhoto("qrcode",is);
-
-                        InlineKeyboardMarkup inlineKeyboardMarkup=new InlineKeyboardMarkup();
-
-                        List<List<InlineKeyboardButton>> rows=new ArrayList<>();
-
-                        List<InlineKeyboardButton> row=new ArrayList<>();
-
-                        rows.add(row);
-
-                        InlineKeyboardButton inlineKeyboardButton=new InlineKeyboardButton();
-
-                        inlineKeyboardButton.setText("send qr");
-
-                        row.add(inlineKeyboardButton);
-
-                        inlineKeyboardMarkup.setKeyboard(rows);
-
-                        //sendPhoto.setReplyMarkup(inlineKeyboardMarkup);
-
-                        Message photoSent;
-
-                        try {
-                            photoSent=qrCodeBot.sendPhoto(sendPhoto);
-                        } catch (TelegramApiException e) {
-                            sendErrorMessage("unable to create qr");//TODO logging in questo metodo
-                            e.printStackTrace();
-                            return;
-                        }
-
-                        try {
-                            Thread.sleep(200);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-
-                        inlineKeyboardButton.setSwitchInlineQuery(INLINE_IMG_TOCKEN);
-
-                        String f_id = photoSent.getPhoto().stream()
-                                .sorted(Comparator.comparing(PhotoSize::getFileSize).reversed())
-                                .findFirst()
-                                .orElse(null).getFileId();
-
-                        u.setFileIdForInline(f_id);
-                        u.setThumbIdForInline(String.valueOf(photoSent.getPhoto().get(0).getFileId()));
-
-                        User.saveUser(u);
-
-                        SendMessage message1=new SendMessage();
-                        message1.setChatId(update.getMessage().getChatId());
-                        message1.setText("OK");
-
-                        message1.setReplyMarkup(inlineKeyboardMarkup);
-
-                        qrCodeBot.sendResponse(message1);
-
-                        return;
-                    }
                     //break;
                 case "/instruction":
                 case "/help":
                     sendHelpMessage();
                     break;
-                case "/encode":
-                    if(splits.length<2){
-                        message.setText("use:\n/encode <text>");
-                        qrCodeBot.sendResponse(message);
-                        break;
-                    }
-
-                    String text="";
-
-                    //i=1 in order to skyp the encode command
-                    for(int i=1;i<splits.length;i++){
-                        if(i!=1){
-                            text+=" ";
-                        }
-                        text+=splits[i];
-                    }
-
-                    SendPhoto sendPhoto=new SendPhoto();
-                    sendPhoto.setChatId(update.getMessage().getChatId());
-
-                    /*create Qrcode */
-                    InputStream is = getQRInputStream(text);
-                    if (is == null) return;
-
-                    /*send the qrcode*/
-                    sendPhoto.setNewPhoto("qrcode",is);
-
-                    try {
-                        qrCodeBot.sendPhoto(sendPhoto);
-                    } catch (TelegramApiException e) {
-                        e.printStackTrace();
-                    }
-
-                    return;
-
-                case "/encode_wifi":
-
-                    /* create a QR for wifi credential*/
-                    // wifi connection string WIFI:S:<SSID>;T:<WPA|WEP|>;P:<password>;;
-                    SendPhoto sendPhotoWIFI=new SendPhoto();
-                    sendPhotoWIFI.setChatId(update.getMessage().getChatId());
-
-                    String ssid,type,password;
-
-                    if(splits.length==4){
-                        ssid=splits[1];
-                        type=splits[2];
-                        password=splits[3];
-                    } else if (splits.length==3){
-                        ssid=splits[1];
-                        password=splits[2];
-                        type="WPA";
-                    }
-                    else {
-                        message.setText("use:\n/encode_wifi <SSID> <WPA|WEP> <password> " +
-                                "\nor: /encode_wifi <SSID> <password> for WPA network");
-                        qrCodeBot.sendResponse(message);
-                        break;
-                    }
-
-                    /*create Qrcode */
-                    InputStream isWIFI = getQRInputStream("WIFI:S:"+ssid+";T:"+type+";P:"+password+";;");
-                    if (isWIFI == null) return;
-
-                    /*send the qrcode*/
-                    sendPhotoWIFI.setNewPhoto("qrcode_WIFI",isWIFI);
-
-                    try {
-                        qrCodeBot.sendPhoto(sendPhotoWIFI);
-                    } catch (TelegramApiException e) {
-                        e.printStackTrace();
-                    }
-
-                    return;
-                case "/encode_dm":
-
-                    if(splits.length<2){
-                        message.setText("use:\n/encode_dm <text>");
-                        qrCodeBot.sendResponse(message);
-                        break;
-                    }
-
-                    String textDM="";
-
-                    //i=1 in order to skyp the encode command
-                    for(int i=1;i<splits.length;i++){
-                        if(i!=1){
-                            textDM+=" ";
-                        }
-                        textDM+=splits[i];
-                    }
-
-                    SendPhoto sendPhotoDM=new SendPhoto();
-                    sendPhotoDM.setChatId(update.getMessage().getChatId());
-
-                    InputStream isDM = null;
-
-                    try {
-                        isDM=getInputStreamFromBufferedImage(createDataMatrix(textDM));
-                    } catch (WriterException e) {
-                        e.printStackTrace();
-                        sendErrorMessage("Unable to encode the text");
-                    }
-
-                    if(isDM==null)
-                        return;
-
-                    sendPhotoDM.setNewPhoto("DataMatrix",isDM);
-
-                    try {
-                        qrCodeBot.sendPhoto(sendPhotoDM);
-                    } catch (TelegramApiException e) {
-                        e.printStackTrace();
-                    }
-
-                    return;
                 case "/chats":
 
                     User u=User.getById(Long.valueOf(update.getMessage().getFrom().getId()));
@@ -326,14 +111,14 @@ public class UpdateTask implements Runnable {
                     message.setText(chatsString.replace("_","\\_"));
                     message.enableMarkdown(true);
 
-                    qrCodeBot.sendResponse(message);
+                    bot.sendResponse(message);
 
                     return;
 
                 default:
                     if(update.getMessage().isUserMessage()) {
                         message.setText("Type /help for the list of available commands");
-                        qrCodeBot.sendResponse(message);
+                        bot.sendResponse(message);
                     }
                     break;
             }
@@ -371,14 +156,14 @@ public class UpdateTask implements Runnable {
             File file=null;
 
             try {
-                file=qrCodeBot.getFile(getFileRequest);
+                file=bot.getFile(getFileRequest);
             } catch (TelegramApiException e) {
                 logger.error("file not exits");
                 sendErrorMessage("File not exits");
                 e.printStackTrace();
             }
 
-            logger.info("file url: "+file.getFileUrl(qrCodeBot.getBotToken()));
+            logger.info("file url: "+file.getFileUrl(bot.getBotToken()));
             logger.info(file.toString());
 
             InputStream is=null;
@@ -394,60 +179,8 @@ public class UpdateTask implements Runnable {
                 sendErrorMessage("Unable to download file");
                 return;
             }
-
-            Map hintMap = getHintMap();
-
-            SendMessage message=new SendMessage();
-            message.setChatId(update.getMessage().getChatId());
-
-            try {
-
-                 /* Vcart example
-
-                BEGIN:VCARD
-                VERSION:3.0
-                FN:Paolo Rossi
-                ADR:;;123 Street;City;Region;PostalCode;Country
-                TEL:+908888888888
-                TEL:+901111111111
-                TEL:+902222222222
-                EMAIL;TYPE=home:homeemail@example.com
-                EMAIL;TYPE=work:workemail@example.com
-                URL:http://www.google.com
-                END:VCARD
-                 */
-
-                String text=readQRCode(is,hintMap);
-
-                /* if the QRcode contains a vCard, send the contac*/
-                if(text.startsWith("BEGIN:VCARD")){
-
-                    if (decodeAndSendContact(message, text)) return;
-
-                }
-                else if(text.startsWith("geo:")|| text.startsWith("GEO:")){
-                    if (decodeAndSendLocation(text)) return;
-
-                    return;
-
-                }
-                else {
-                    message.setText(text);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-                sendErrorMessage("Unable to download file");
-                return;
-            } catch (NotFoundException e) {
-                logger.error("No qrcode");
-                sendErrorMessage("Unable to find a QRcode in the image");
-                return;
-            }
-
-            qrCodeBot.sendResponse(message);
-
         }
-        else if(update.hasInlineQuery() && qrCodeBot.dbLoggingEnabled()){
+        else if(update.hasInlineQuery() && bot.dbLoggingEnabled()){
             /*the inline query mode is available only with the dblogging enable*/
             logger.info("Inline query");
 
@@ -471,35 +204,9 @@ public class UpdateTask implements Runnable {
             List<InlineQueryResult> inlineQueryResults = new ArrayList<>();
             answerInlineQuery.setResults(inlineQueryResults);
 
-            if(update.getInlineQuery().getQuery().equals(INLINE_IMG_TOCKEN) && u.getFileIdForInline()!=null){
-
-               // String uuid=UUID.fromString(u.getFileIdForInline()).toString();
-
-                /*send an aleady encode QR*/
-                InlineQueryResultCachedPhoto inlineQueryResultCachedPhoto=new InlineQueryResultCachedPhoto().setPhotoFileId(u.getFileIdForInline());
-
-                inlineQueryResultCachedPhoto.setId(u.getFileIdForInline());
-                inlineQueryResults.add(inlineQueryResultCachedPhoto);
-
-                logger.info("Load cached photo------------------------------");
-
-
-            }
-            else {
-                /*save data in order to encode a new QR*/
-                u.setTextToEncode(update.getInlineQuery().getQuery());
-
-                User.saveUser(u);
-
-                answerInlineQuery.setSwitchPmParameter("encode");
-                answerInlineQuery.setSwitchPmText("Encode: " + update.getInlineQuery().getQuery());
-
-
-            }
-
             try {
                 answerInlineQuery.setCacheTime(0);
-                logger.info("send result= " + qrCodeBot.answerInlineQuery(answerInlineQuery));
+                logger.info("send result= " + bot.answerInlineQuery(answerInlineQuery));
             } catch (TelegramApiException e) {
                 e.printStackTrace();
             }
@@ -531,135 +238,7 @@ public class UpdateTask implements Runnable {
                     (contact.getLastName()!=null?contact.getLastName():"")+"\n" +
                     "TEL:"+(contact.getPhoneNumber()!=null?contact.getPhoneNumber():"")+"\n" +
                     "END:VCARD";
-
-
-            InputStream in=getQRInputStream(text);
-
-            if(in==null){
-                sendErrorMessage("Unable to encode");
-                return;
-            }
-
-            SendPhoto sendPhoto=new SendPhoto();
-            sendPhoto.setChatId(update.getMessage().getChatId());
-
-            sendPhoto.setNewPhoto("qrcode_contact",in);
-
-            try {
-                qrCodeBot.sendPhoto(sendPhoto);
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-                sendErrorMessage("Unable to encode");
-                return;
-            }
         }
-        else if(update.hasMessage() && update.getMessage().hasLocation()){
-
-            updateChatAndUserInformation();
-
-            Location loc=update.getMessage().getLocation();
-
-            String text="geo:"+loc.getLatitude()+","+loc.getLongitude();
-
-            InputStream is=getQRInputStream(text);
-
-            if(is==null){
-                sendErrorMessage("Unable to encode the geo informations");
-                return;
-            }
-
-            SendPhoto sendPhoto=new SendPhoto();
-            sendPhoto.setChatId(update.getMessage().getChatId());
-
-            sendPhoto.setNewPhoto("QRcode_geo",is);
-
-            try {
-                qrCodeBot.sendPhoto(sendPhoto);
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-                sendErrorMessage("Unable to send the photo");
-                return;
-            }
-        }
-        else if(update.hasMessage() && update.getMessage().hasDocument()){
-
-            updateChatAndUserInformation();
-
-            Document document=update.getMessage().getDocument();
-            logger.info("Document from: "+update.getMessage().getFrom().getUserName()+" name: "+document.getFileName()
-            + "mime: "+document.getMimeType()+"size: "+document.getFileSize());
-
-            if(document.getFileSize()>MAX_FILE_SIZE){
-                sendErrorMessage("File to big ( max "+MAX_FILE_SIZE +" bytes)");
-                return;
-            }
-
-            GetFile getFile=new GetFile();
-            getFile.setFileId(document.getFileId());
-
-            File file;
-            try {
-                file= qrCodeBot.getFile(getFile);
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-                logger.error("File "+document.getFileName()+" not found");
-                sendErrorMessage("Unable to download the file");
-                return;
-            }
-
-            InputStream is;
-            try {
-                is=getFileInputStream(file);
-            } catch (IOException e) {
-                e.printStackTrace();
-                logger.error("Unable to get inputstream "+document.getFileName());
-                sendErrorMessage("Unable to download the file");
-                return;
-            }
-
-
-            BufferedReader reader=new BufferedReader(new InputStreamReader(is));
-
-            String text="";
-            char c[]=new char[1];
-            try {
-                int i=0;
-                while (reader.read(c)>-1 && i<MAX_FILE_SIZE){
-                    text+=c[0];
-                    i++;
-                }
-
-                if(i>=MAX_FILE_SIZE){
-                    sendErrorMessage("Unable to read the file");
-                    logger.error("Unable to read the file");
-                    return;
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-                sendErrorMessage("Unable to read the file");
-                logger.error("Unable to read the file"+document.getFileName());
-                return;
-            }
-
-
-            SendPhoto sendPhoto=new SendPhoto();
-            sendPhoto.setChatId(update.getMessage().getChatId());
-
-            InputStream qrInputStream=getQRInputStream(text);
-
-            sendPhoto.setNewPhoto("QRCode",qrInputStream);
-
-            try {
-                qrCodeBot.sendPhoto(sendPhoto);
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-                sendErrorMessage("Unable to send the QRCode");
-                return;
-            }
-
-
-        }
-
     }
 
     private boolean decodeAndSendLocation(String text) {
@@ -691,7 +270,7 @@ public class UpdateTask implements Runnable {
         }
 
         try {
-            qrCodeBot.sendLocation(sendLocation);
+            bot.sendLocation(sendLocation);
         } catch (TelegramApiException e) {
             e.printStackTrace();
             sendErrorMessage("Unable to send the location");
@@ -733,7 +312,7 @@ public class UpdateTask implements Runnable {
         }
 
         try {
-            qrCodeBot.sendContact(sendContact);
+            bot.sendContact(sendContact);
 
             return true;
         } catch (TelegramApiException e) {
@@ -761,7 +340,7 @@ public class UpdateTask implements Runnable {
         sendDocument.setNewDocument(documetName+".vcard",is);
 
         try {
-            qrCodeBot.sendDocument(sendDocument);
+            bot.sendDocument(sendDocument);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
@@ -775,7 +354,7 @@ public class UpdateTask implements Runnable {
 
         String text2="- Click :paperclip: and send a *photo* with a QRCode: the bot will decode it!\n" +
                 "- Send a *Location* or a *Contact*: the bot will encode it in a QRCode!\n" +
-                "- Use the bot also in chats: write @"+qrCodeBot.getBotUsername().replace("_","\\_")+" <text> to send " +
+                "- Use the bot also in chats: write @"+bot.getBotUsername().replace("_","\\_")+" <text> to send " +
                 "your friends a QRCoded message! (inline mode)";
 
         String text3="- Write /help or /instruction to see the commands again! :yum:";
@@ -797,15 +376,15 @@ public class UpdateTask implements Runnable {
         message2.enableMarkdown(true);
         message2.setText(EmojiParser.parseToUnicode(text3));
 
-        qrCodeBot.sendResponse(message1);
-        qrCodeBot.sendResponse(message);
-        qrCodeBot.sendResponse(message2);
+        bot.sendResponse(message1);
+        bot.sendResponse(message);
+        bot.sendResponse(message2);
 
         SendMessage enjoyMessage=new SendMessage();
         enjoyMessage.setChatId(update.getMessage().getChatId());
         enjoyMessage.setText(EmojiParser.parseToUnicode("Enjoy! :grin:"));
 
-        qrCodeBot.sendResponse(enjoyMessage);
+        bot.sendResponse(enjoyMessage);
 
         /*SendPhoto sendPhoto=new SendPhoto();
         sendPhoto.setChatId(update.getMessage().getChatId());
@@ -818,25 +397,6 @@ public class UpdateTask implements Runnable {
             e.printStackTrace();
             logger.error("Unable to send the photo");
         }*/
-    }
-
-    private InputStream getQRInputStream(String text) {
-        BufferedImage bufferedImage;
-        try {
-            bufferedImage=createQr(text);
-        } catch (WriterException e) {
-            sendErrorMessage("Unable to encode the image");
-            e.printStackTrace();
-            return null;
-        } catch (IOException e) {
-            sendErrorMessage("Unable to encode the image");
-            e.printStackTrace();
-            return null;
-        }
-
-                    /*get a InputStream with the qrcode*/
-        InputStream is = getInputStreamFromBufferedImage(bufferedImage);
-        return is;
     }
 
     private InputStream getInputStreamFromBufferedImage(BufferedImage bufferedImage) {
@@ -859,7 +419,7 @@ public class UpdateTask implements Runnable {
 
     private void updateChatAndUserInformation(Long chatId,Long userId,String username) {
 
-        if(!qrCodeBot.dbLoggingEnabled())
+        if(!bot.dbLoggingEnabled())
             return;
 
         ChatEntity c=ChatEntity.getById(chatId);
@@ -899,70 +459,19 @@ public class UpdateTask implements Runnable {
         c=ChatEntity.saveChat(c);
     }
 
-    private Map getHintMap() {
-        Map hintMap = new HashMap();
-        hintMap.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.L);
-        return hintMap;
-    }
-
-    private BufferedImage createQr(String text) throws WriterException, IOException{
-        //String charset, Map hintMap, int qrCodeheight, int qrCodewidth)
-        Map hintMap = getHintMap();
-
-        /* used for creating bigger images */
-        int mult=1;
-
-        if(text.length()>SIZE_THRESHOLD)
-            mult+=text.length()/SIZE_THRESHOLD;
-
-        BitMatrix matrix = new MultiFormatWriter().encode(
-                new String(text.getBytes(CHARSET), CHARSET),
-                BarcodeFormat.QR_CODE, WIDTH_QR*mult, HEIGHT_QR*mult, hintMap);
-
-        logger.info("Moltiplicator= "+mult);
-
-        BufferedImage bufferedImage=MatrixToImageWriter.toBufferedImage(matrix);
-
-        return bufferedImage;
-    }
-
-    private BufferedImage createDataMatrix(String text) throws WriterException {
-        Map hintMap =new HashMap();
-        hintMap.put(EncodeHintType.DATA_MATRIX_SHAPE, SymbolShapeHint.FORCE_SQUARE);
-
-        BitMatrix matrix= new MultiFormatWriter().encode(text,
-                BarcodeFormat.DATA_MATRIX,WIDTH_DM,HEIGHT_DM);
-
-
-        DataMatrixWriter writer = new DataMatrixWriter();
-
-        matrix=writer.encode(text,BarcodeFormat.DATA_MATRIX,matrix.getWidth(),matrix.getHeight(),hintMap);
-
-
-        return MatrixToImageWriter.toBufferedImage(matrix);
-    }
 
     private InputStream getFileInputStream(File file) throws IOException {
-        URL url=new URL(file.getFileUrl(qrCodeBot.getBotToken()));
+        URL url=new URL(file.getFileUrl(bot.getBotToken()));
         InputStream is=url.openStream();
 
         //Files.copy(is,Paths.get("download.jpg"));
         return is;
     }
 
-    public static String readQRCode(InputStream is, Map hintMap) throws FileNotFoundException, IOException, NotFoundException {
-        BinaryBitmap binaryBitmap = new BinaryBitmap(new HybridBinarizer(
-                new BufferedImageLuminanceSource(
-                        ImageIO.read(is))));
-        Result qrCodeResult = new MultiFormatReader().decode(binaryBitmap,
-                hintMap);
-        return qrCodeResult.getText();
-    }
-
     private void sendErrorMessage(String text) {
         SendMessage message=new SendMessage();
         message.setChatId(update.getMessage().getChatId());
         message.setText(text);
-        qrCodeBot.sendResponse(message);
+        bot.sendResponse(message);
     }
 }

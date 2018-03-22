@@ -24,18 +24,6 @@ public class User implements Serializable {
     @ManyToMany(cascade = CascadeType.PERSIST,fetch = FetchType.EAGER, mappedBy = "users")
     private Set<ChatEntity> chatEntities;
 
-    /**
-     * text for encoding in inline mode
-     */
-    @Column(name = "text_to_emcode")
-    private String textToEncode;
-
-    @Column(name = "file_id_for_inline")
-    private String fileIdForInline;
-
-    @Column(name = "thumb_id_for_inline")
-    private String thumbIdForInline;
-
     public static User getById(Long id){
         EntityManager em= Broadcaster_BotDao.instance.createEntityManager();
         User u=em.find(User.class,id);
@@ -85,29 +73,5 @@ public class User implements Serializable {
 
     public void setRole(Role role) {
         this.role = role;
-    }
-
-    public String getTextToEncode() {
-        return textToEncode;
-    }
-
-    public void setTextToEncode(String textToEncode) {
-        this.textToEncode = textToEncode;
-    }
-
-    public String getFileIdForInline() {
-        return fileIdForInline;
-    }
-
-    public void setFileIdForInline(String fileIdForInline) {
-        this.fileIdForInline = fileIdForInline;
-    }
-
-    public String getThumbIdForInline() {
-        return thumbIdForInline;
-    }
-
-    public void setThumbIdForInline(String thumbIdForInline) {
-        this.thumbIdForInline = thumbIdForInline;
     }
 }
