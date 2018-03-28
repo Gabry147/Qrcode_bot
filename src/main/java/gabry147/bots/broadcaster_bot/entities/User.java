@@ -3,7 +3,7 @@ package gabry147.bots.broadcaster_bot.entities;
 import javax.persistence.*;
 
 import gabry147.bots.broadcaster_bot.entities.dao.Broadcaster_BotDao;
-import gabry147.bots.broadcaster_bot.entities.extra.Role;
+import gabry147.bots.broadcaster_bot.entities.extra.UserRole;
 
 import java.io.Serializable;
 import java.util.List;
@@ -18,11 +18,9 @@ public class User implements Serializable {
 
     private String username;
 
-    @Enumerated(EnumType.STRING)
-    private Role role;
-
-    @ManyToMany(cascade = CascadeType.PERSIST,fetch = FetchType.EAGER, mappedBy = "users")
-    private Set<ChatEntity> chatEntities;
+    @Enumerated(EnumType.ORDINAL)
+    @Column(name="role")
+    private UserRole role;
 
     public static User getById(Long id){
         EntityManager em= Broadcaster_BotDao.instance.createEntityManager();
@@ -59,19 +57,11 @@ public class User implements Serializable {
         this.username = username;
     }
 
-    public Set<ChatEntity> getChatEntities() {
-        return chatEntities;
-    }
-
-    public void setChatEntities(Set<ChatEntity> chatEntities) {
-        this.chatEntities = chatEntities;
-    }
-
-    public Role getRole() {
+    public UserRole getRole() {
         return role;
     }
 
-    public void setRole(Role role) {
+    public void setRole(UserRole role) {
         this.role = role;
     }
 }
