@@ -3,12 +3,18 @@ package gabry147.bots.broadcaster_bot.tasks;
 import com.vdurmont.emoji.EmojiParser;
 
 import gabry147.bots.broadcaster_bot.Broadcaster_bot;
+import gabry147.bots.broadcaster_bot.entities.extra.ChatRole;
 
 import org.apache.log4j.Logger;
 import org.telegram.telegrambots.api.methods.AnswerInlineQuery;
+import org.telegram.telegrambots.api.methods.groupadministration.LeaveChat;
 import org.telegram.telegrambots.api.objects.*;
+import org.telegram.telegrambots.api.objects.inlinequery.ChosenInlineQuery;
 import org.telegram.telegrambots.api.objects.inlinequery.InlineQuery;
+import org.telegram.telegrambots.api.objects.inlinequery.inputmessagecontent.InputMessageContent;
+import org.telegram.telegrambots.api.objects.inlinequery.inputmessagecontent.InputTextMessageContent;
 import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResult;
+import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResultArticle;
 import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResultPhoto;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
 
@@ -20,8 +26,6 @@ public class UpdateTask implements Runnable {
 
     private final static String CHARSET="UTF-8"; // or "ISO-8859-1"
 
-    private final static long MAX_USE_NUM=9223372036854775000L;
-
     private Broadcaster_bot bot;
     private Update update;
 
@@ -31,34 +35,29 @@ public class UpdateTask implements Runnable {
     }
 
     public void run() {
-    	
-    	if(update.hasInlineQuery()) {
+    	if(update.hasMessage()) {
+    		logger.info(update.getMessage().getText());
+    		logger.info(update.getMessage());
+    		long chatId = update.getMessage().getChat().getId().longValue();
+    		long userId = update.getMessage().getFrom().getId().longValue();
     		
-    		InlineQuery inlineQuery = update.getInlineQuery();
-    		String query = update.getInlineQuery().getQuery();
-            try {
-                if (query.isEmpty()) {
-                    
-                } else if(query.equals("backlog")) {
-                	String backlog_photo_url = "https://i.imgur.com/RsIf1mr.png";
-                                        
-                    InlineQueryResultPhoto backlogPhoto = new InlineQueryResultPhoto();
-                    backlogPhoto.setId("backlog");
-                    backlogPhoto.setPhotoUrl(backlog_photo_url);
-                    backlogPhoto.setThumbUrl(backlog_photo_url);
- 
-                    List<InlineQueryResult> results = new ArrayList<>();
-                    results.add(backlogPhoto);
-                    
-                	AnswerInlineQuery answerInlineQuery = new AnswerInlineQuery();
-                    answerInlineQuery.setInlineQueryId(inlineQuery.getId());
-                    answerInlineQuery.setResults(results);
-                    
-                    bot.answerInlineQuery(answerInlineQuery);
-                }
-            } catch (TelegramApiException e) {
-            	//TODO
-            }
+    		if(chatId == userId) {
+    			logger.info("private message");
+    		}
+    		else {
+    			logger.info("chat message");
+    			//at the moment, automatically leave chat
+    			//update.getMessage().getNewChatMembers() for new members, bot included
+    			LeaveChat leaveChat = new LeaveChat();
+    			leaveChat.setChatId(chatId);
+    			try {
+					bot.leaveChat(leaveChat);
+				} catch (TelegramApiException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+    		}
     	}
+    	
     }
 }
