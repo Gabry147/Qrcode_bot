@@ -11,26 +11,26 @@ import java.util.Set;
 
 @Entity
 @Table(name = "users")
-public class User implements Serializable {
+public class UserEntity implements Serializable {
     @Id
     @Column(name="user_id")
     private long userId;
 
     private String username;
 
-    @Enumerated(EnumType.ORDINAL)
+    @Enumerated(EnumType.STRING)
     @Column(name="role")
     private UserRole role;
 
-    public static User getById(Long id){
+    public static UserEntity getById(Long id){
         EntityManager em= Broadcaster_BotDao.instance.createEntityManager();
-        User u=em.find(User.class,id);
+        UserEntity u=em.find(UserEntity.class,id);
         Broadcaster_BotDao.instance.closeConnections(em);
 
         return u;
     }
 
-    public static User saveUser(User u){
+    public static UserEntity saveUser(UserEntity u){
         EntityManager em=Broadcaster_BotDao.instance.createEntityManager();
         EntityTransaction tx=em.getTransaction();
         tx.begin();

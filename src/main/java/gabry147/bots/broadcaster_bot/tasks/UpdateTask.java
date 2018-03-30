@@ -3,10 +3,13 @@ package gabry147.bots.broadcaster_bot.tasks;
 import com.vdurmont.emoji.EmojiParser;
 
 import gabry147.bots.broadcaster_bot.Broadcaster_bot;
+import gabry147.bots.broadcaster_bot.entities.UserEntity;
 import gabry147.bots.broadcaster_bot.entities.extra.ChatRole;
+import gabry147.bots.broadcaster_bot.entities.extra.UserRole;
 
 import org.apache.log4j.Logger;
 import org.telegram.telegrambots.api.methods.AnswerInlineQuery;
+import org.telegram.telegrambots.api.methods.groupadministration.GetChatAdministrators;
 import org.telegram.telegrambots.api.methods.groupadministration.LeaveChat;
 import org.telegram.telegrambots.api.objects.*;
 import org.telegram.telegrambots.api.objects.inlinequery.ChosenInlineQuery;
@@ -36,26 +39,89 @@ public class UpdateTask implements Runnable {
 
     public void run() {
     	if(update.hasMessage()) {
-    		logger.info(update.getMessage().getText());
-    		logger.info(update.getMessage());
-    		long chatId = update.getMessage().getChat().getId().longValue();
-    		long userId = update.getMessage().getFrom().getId().longValue();
+    		Message message = update.getMessage();
+    		logger.info(message);
+    		long chatId = message.getChat().getId().longValue();
+    		long userId = message.getFrom().getId().longValue();
     		
-    		if(chatId == userId) {
-    			logger.info("private message");
+    		UserEntity userEntity = UserEntity.getById(userId);
+    		if(userEntity != null) {
+    			if(userEntity.getRole().equals(UserRole.BANNED)) {
+    				return;
+    			}
     		}
-    		else {
+    		
+    		if(chatId != userId) {
     			logger.info("chat message");
     			//at the moment, automatically leave chat
-    			//update.getMessage().getNewChatMembers() for new members, bot included
+    			//update.getMessage().getNewChatMembers() for new members, bot included. If member is admin, bot remains
     			LeaveChat leaveChat = new LeaveChat();
     			leaveChat.setChatId(chatId);
     			try {
 					bot.leaveChat(leaveChat);
 				} catch (TelegramApiException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					logger.error(e);
 				}
+    			return;
+    		}   
+    		
+			logger.info("private message");		
+			
+			String[] alphanumericalSplit = message.getText().split(" ");
+
+			String[] commandSplit = alphanumericalSplit[0].split("@");			
+			
+			if(commandSplit.length>1){
+                if(!commandSplit[1].equals(bot.getBotUsername())){
+                    return;
+                }
+			}
+			// save command and remove /
+			String command = commandSplit[0].substring(1).toUpperCase();
+			if( command.equals( PrivateCommand.COMMANDS.toString() ) ) {
+				//
+			}
+
+			//user is in db
+			if(userEntity != null) {
+				if(userEntity.getRole().compareTo(UserRole.ACCEPTED) <= 0) {
+    				//command accepted+ (custom)
+    			}
+    			if(userEntity.getRole().compareTo(UserRole.APPROVER) <= 0) {
+    				//command approver+ (promote, forward info)
+    				if(message.getForwardFrom() != null) {
+        				User user = message.getForwardFrom();
+        				logger.info(user);
+        			}
+    				if( command.equals( PrivateCommand.PROMOTE.toString() ) ) {
+    					
+    				}
+    				else if( command.equals( PrivateCommand.DEMOTE.toString() ) ) {
+    					
+    				}
+    				else if( command.equals( PrivateCommand.BAN.toString() ) ) {
+    					
+    				}
+    			}
+    			if(userEntity.getRole().compareTo(UserRole.ADMIN) <= 0) {
+    				if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
+    					
+    				}
+    				//command admin+ (set custom, secure chat, members)
+    				GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
+    				getChatAdministrators.setChatId(chatId);
+    				try {
+						bot.getChatAdministrators(getChatAdministrators);
+					} catch (TelegramApiException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+    			}
+    			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
+    				//set backlog
+    			}
+    			
+    			
     		}
     	}
     	

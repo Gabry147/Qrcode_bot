@@ -1,6 +1,7 @@
 package gabry147.bots.broadcaster_bot.tasks;
 
-//command already generated, can't be used by
+//command already generated
+//order is important: new command at the end of the list
 public enum PrivateCommand {
-	promote, demote, ban, sendMessage, commands;
+	PROMOTE, DEMOTE, BAN, SENDMESSAGE, COMMANDS;
 }
