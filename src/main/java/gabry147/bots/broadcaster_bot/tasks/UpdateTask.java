@@ -8,17 +8,10 @@ import gabry147.bots.broadcaster_bot.entities.extra.ChatRole;
 import gabry147.bots.broadcaster_bot.entities.extra.UserRole;
 
 import org.apache.log4j.Logger;
-import org.telegram.telegrambots.api.methods.AnswerInlineQuery;
 import org.telegram.telegrambots.api.methods.groupadministration.GetChatAdministrators;
 import org.telegram.telegrambots.api.methods.groupadministration.LeaveChat;
+import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.*;
-import org.telegram.telegrambots.api.objects.inlinequery.ChosenInlineQuery;
-import org.telegram.telegrambots.api.objects.inlinequery.InlineQuery;
-import org.telegram.telegrambots.api.objects.inlinequery.inputmessagecontent.InputMessageContent;
-import org.telegram.telegrambots.api.objects.inlinequery.inputmessagecontent.InputTextMessageContent;
-import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResult;
-import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResultArticle;
-import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResultPhoto;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
 
 import java.util.*;
@@ -73,25 +66,44 @@ public class UpdateTask implements Runnable {
 			
 			if(commandSplit.length>1){
                 if(!commandSplit[1].equals(bot.getBotUsername())){
+                	logger.info("message from another bot");
                     return;
                 }
 			}
 			// save command and remove /
 			String command = commandSplit[0].substring(1).toUpperCase();
-			if( command.equals( PrivateCommand.COMMANDS.toString() ) ) {
-				//
-			}
 
 			//user is in db
 			if(userEntity != null) {
 				if(userEntity.getRole().compareTo(UserRole.ACCEPTED) <= 0) {
-    				//command accepted+ (custom)
+    				//command accepted+ (custom commands)
+					if( command.equals( PrivateCommand.COMMANDS.toString() ) ) {
+						//
+					}
     			}
     			if(userEntity.getRole().compareTo(UserRole.APPROVER) <= 0) {
     				//command approver+ (promote, forward info)
     				if(message.getForwardFrom() != null) {
-        				User user = message.getForwardFrom();
-        				logger.info(user);
+        				User forwardedUser = message.getForwardFrom();
+        				UserEntity user = UserEntity.getById(forwardedUser.getId().longValue());
+        				String role = "NOT REGISTERED";
+        				if(user != null) role = user.getRole().toString();
+        				SendMessage reply = new SendMessage();
+        				reply.setChatId(chatId);
+        				reply.enableHtml(true);
+        				reply.setText(
+        						"Name: <b>" + sanitize(forwardedUser.getFirstName()) + "</b>\n" +
+        						"Username: @" + sanitize(forwardedUser.getUserName()) + "\n" +
+        						"`" + forwardedUser.getId() +"`\n" +
+        						"Role: " + role + sanitize(" _*`<>&")
+        						);
+        				try {
+							bot.sendMessage(reply);
+						} catch (TelegramApiException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+        				return;
         			}
     				if( command.equals( PrivateCommand.PROMOTE.toString() ) ) {
     					
@@ -125,5 +137,10 @@ public class UpdateTask implements Runnable {
     		}
     	}
     	
+    }
+    
+    private String sanitize(String toSanitize) {
+    	//replace & must be first or it will destroy all sanitizations
+    	return toSanitize.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
     }
 }
