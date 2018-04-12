@@ -82,20 +82,19 @@ public class UpdateTask implements Runnable {
 					}
     			}
     			if(userEntity.getRole().compareTo(UserRole.APPROVER) <= 0) {
-    				//command approver+ (promote, forward info)
     				if(message.getForwardFrom() != null) {
         				User forwardedUser = message.getForwardFrom();
-        				UserEntity user = UserEntity.getById(forwardedUser.getId().longValue());
+        				UserEntity forwarderDBuser = UserEntity.getById(forwardedUser.getId().longValue());
         				String role = "NOT REGISTERED";
-        				if(user != null) role = user.getRole().toString();
+        				if(forwarderDBuser != null) role = forwarderDBuser.getRole().toString();
         				SendMessage reply = new SendMessage();
         				reply.setChatId(chatId);
         				reply.enableHtml(true);
         				reply.setText(
         						"Name: <b>" + sanitize(forwardedUser.getFirstName()) + "</b>\n" +
         						"Username: @" + sanitize(forwardedUser.getUserName()) + "\n" +
-        						"`" + forwardedUser.getId() +"`\n" +
-        						"Role: " + role + sanitize(" _*`<>&")
+        						"<code>" + forwardedUser.getId() +"</code>\n" +
+        						"Role: " + role
         						);
         				try {
 							bot.sendMessage(reply);
@@ -106,6 +105,32 @@ public class UpdateTask implements Runnable {
         				return;
         			}
     				if( command.equals( PrivateCommand.PROMOTE.toString() ) ) {
+    					String userToPromoteStringID = alphanumericalSplit[1];
+    					long userToPromoteID = Long.valueOf(userToPromoteStringID);
+    					UserEntity userToPromote = UserEntity.getById(userToPromoteID);
+    					if(userToPromote == null) {
+    						logger.info("Approved: "+userToPromoteID);
+    						userToPromote = new UserEntity();
+    						userToPromote.setUserId(userToPromoteID);
+    						userToPromote.setRole(UserRole.ACCEPTED);   						
+    					}
+    					else {
+    						if(userEntity.getRole().compareTo(userToPromote.getRole()) < 0) {
+    							UserRole[] roles = UserRole.values();
+    							UserRole previousRole = UserRole.OWNER;
+    							for(UserRole currentRole : roles) {
+    								if(currentRole.compareTo(userToPromote.getRole()) == 0) {
+    									userToPromote.setRole(previousRole);
+    									logger.info("Promote: "+userToPromoteID);
+    									break;
+    								}
+    								previousRole = currentRole;
+    							}
+    						}
+    					}
+    					UserEntity.saveUser(userToPromote);
+    					//TODO advert user
+    					return;
     					
     				}
     				else if( command.equals( PrivateCommand.DEMOTE.toString() ) ) {
