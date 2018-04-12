@@ -26,11 +26,13 @@ public class Main {
         	logger.info("no admin");
         	firstAdmin = new UserEntity();
         	firstAdmin.setUserId(firstAdminId);
-        	firstAdmin.setRole(UserRole.ADMIN);
+        	firstAdmin.setRole(UserRole.OWNER);
         	UserEntity.saveUser(firstAdmin);
         }
-        else if(! (firstAdmin.getRole().equals(UserRole.ADMIN))) {
-        	logger.error("user exist but not admin");
+        else if(! (firstAdmin.getRole().equals(UserRole.OWNER))) {
+        	logger.error("user exist but not owner");
+        	firstAdmin.setRole(UserRole.OWNER);
+        	UserEntity.saveUser(firstAdmin);
         }
         
         try {

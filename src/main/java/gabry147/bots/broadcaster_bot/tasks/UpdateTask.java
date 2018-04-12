@@ -36,6 +36,7 @@ public class UpdateTask implements Runnable {
     		logger.info(message);
     		long chatId = message.getChat().getId().longValue();
     		long userId = message.getFrom().getId().longValue();
+    		updateUserDbInfo(message.getFrom());
     		
     		UserEntity userEntity = UserEntity.getById(userId);
     		if(userEntity != null) {
@@ -82,28 +83,6 @@ public class UpdateTask implements Runnable {
 					}
     			}
     			if(userEntity.getRole().compareTo(UserRole.APPROVER) <= 0) {
-    				if(message.getForwardFrom() != null) {
-        				User forwardedUser = message.getForwardFrom();
-        				UserEntity forwarderDBuser = UserEntity.getById(forwardedUser.getId().longValue());
-        				String role = "NOT REGISTERED";
-        				if(forwarderDBuser != null) role = forwarderDBuser.getRole().toString();
-        				SendMessage reply = new SendMessage();
-        				reply.setChatId(chatId);
-        				reply.enableHtml(true);
-        				reply.setText(
-        						"Name: <b>" + sanitize(forwardedUser.getFirstName()) + "</b>\n" +
-        						"Username: @" + sanitize(forwardedUser.getUserName()) + "\n" +
-        						"<code>" + forwardedUser.getId() +"</code>\n" +
-        						"Role: " + role
-        						);
-        				try {
-							bot.sendMessage(reply);
-						} catch (TelegramApiException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-        				return;
-        			}
     				if( command.equals( PrivateCommand.PROMOTE.toString() ) ) {
     					String userToPromoteStringID = alphanumericalSplit[1];
     					long userToPromoteID = Long.valueOf(userToPromoteStringID);
@@ -129,20 +108,60 @@ public class UpdateTask implements Runnable {
     						}
     					}
     					UserEntity.saveUser(userToPromote);
-    					//TODO advert user
+    					sendUserInfo(chatId, userToPromote);
     					return;
     					
     				}
     				else if( command.equals( PrivateCommand.DEMOTE.toString() ) ) {
-    					
+    					String userToDemoteStringID = alphanumericalSplit[1];
+    					long userToDemoteID = Long.valueOf(userToDemoteStringID);
+    					UserEntity userToDemote = UserEntity.getById(userToDemoteID);
+    					if(userToDemote == null) {
+    						logger.info("Approved: "+userToDemoteID);
+    						userToDemote = new UserEntity();
+    						userToDemote.setUserId(userToDemoteID);
+    						userToDemote.setRole(UserRole.BANNED);
+    						sendTelegramMessage(chatId, 
+    								"Unknown user, demote to BAN status. If it's an error, send:\n"
+    								+ "<code>/"+PrivateCommand.PROMOTE+" "+userToDemoteID+"</code>");
+    					}
+    					else {
+    						if(userEntity.getRole().compareTo(userToDemote.getRole()) < 0) {
+    							UserRole[] roles = UserRole.values();
+    							boolean previousRole = false;
+    							for(UserRole role : roles) {
+    								if(previousRole) {
+    									userToDemote.setRole(role);
+    									logger.info("Demote: "+userToDemoteID);
+    									break;
+    								}
+    								if(role.compareTo(userToDemote.getRole()) == 0) {
+    									previousRole = true;
+    								}
+    							}
+    						}
+    					}
+    					UserEntity.saveUser(userToDemote);
+    					sendUserInfo(chatId, userToDemote);
+    					return;
     				}
     				else if( command.equals( PrivateCommand.BAN.toString() ) ) {
-    					
+    					return;
     				}
+    				//placed after command code -> approver can forward commands
+    				if(message.getForwardFrom() != null) {
+        				User forwardedUser = message.getForwardFrom();
+        				UserEntity forwarderDBuser = UserEntity.getById(forwardedUser.getId().longValue());
+        				String role = "NOT REGISTERED";
+        				if(forwarderDBuser != null) role = forwarderDBuser.getRole().toString();
+        				updateUserDbInfo(forwardedUser);
+        				sendTelegramUserInfo(chatId, forwardedUser, role);
+        				return; //with this line, it's impossible to admin to forward command
+        			}
     			}
     			if(userEntity.getRole().compareTo(UserRole.ADMIN) <= 0) {
     				if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
-    					
+    					return;
     				}
     				//command admin+ (set custom, secure chat, members)
     				GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
@@ -167,5 +186,66 @@ public class UpdateTask implements Runnable {
     private String sanitize(String toSanitize) {
     	//replace & must be first or it will destroy all sanitizations
     	return toSanitize.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+    }
+    
+    private void updateUserDbInfo(User user) {
+    	UserEntity dbUser = UserEntity.getById(user.getId().longValue());
+    	if(dbUser == null) {
+    		dbUser = new UserEntity();
+    		dbUser.setUserId(user.getId().longValue());
+    		dbUser.setRole(UserRole.NORMAL);
+    	}
+		dbUser.setUsername(user.getUserName());
+    	UserEntity.saveUser(dbUser);
+    }
+    
+    private void sendTelegramMessage(long chatId, String text) {
+    	SendMessage reply = new SendMessage();
+		reply.setChatId(chatId);
+		reply.enableHtml(true);
+		reply.setText(sanitize(text));
+		try {
+			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    }
+    
+    private void sendTelegramUserInfo(long chatId, User user, String role) {
+    	SendMessage reply = new SendMessage();
+		reply.setChatId(chatId);
+		reply.enableHtml(true);
+		reply.setText(
+				"Name: <b>" + sanitize(user.getFirstName()) + "</b>\n" +
+				"Username: @" + sanitize(user.getUserName()) + "\n" +
+				"<code>" + user.getId() +"</code>\n" +
+				"Role: " + role
+				);
+		try {
+			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    }
+    
+    private void sendUserInfo(long chatId, UserEntity user) {
+    	SendMessage reply = new SendMessage();
+		reply.setChatId(chatId);
+		reply.enableHtml(true);
+		String username = "<i>NOT SAVED</i>";
+		if(user.getUsername() != null) username = "@" + sanitize(user.getUsername());
+		reply.setText(
+				"Username: " + username + "\n" +
+				"<code>" + user.getUserId() +"</code>\n" +
+				"Role: " + sanitize(user.getRole().toString())
+				);
+		try {
+			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
     }
 }
