@@ -3,12 +3,14 @@ package gabry147.bots.broadcaster_bot.tasks;
 import com.vdurmont.emoji.EmojiParser;
 
 import gabry147.bots.broadcaster_bot.Broadcaster_bot;
+import gabry147.bots.broadcaster_bot.entities.ChatEntity;
 import gabry147.bots.broadcaster_bot.entities.UserEntity;
 import gabry147.bots.broadcaster_bot.entities.extra.ChatRole;
 import gabry147.bots.broadcaster_bot.entities.extra.UserRole;
 
 import org.apache.log4j.Logger;
 import org.telegram.telegrambots.api.methods.groupadministration.GetChatAdministrators;
+import org.telegram.telegrambots.api.methods.groupadministration.KickChatMember;
 import org.telegram.telegrambots.api.methods.groupadministration.LeaveChat;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.*;
@@ -36,7 +38,6 @@ public class UpdateTask implements Runnable {
     		logger.info(message);
     		long chatId = message.getChat().getId().longValue();
     		long userId = message.getFrom().getId().longValue();
-    		updateUserDbInfo(message.getFrom());
     		
     		UserEntity userEntity = UserEntity.getById(userId);
     		if(userEntity != null) {
@@ -44,18 +45,74 @@ public class UpdateTask implements Runnable {
     				return;
     			}
     		}
+    		updateUserDbInfo(message.getFrom());
+    		ChatEntity chatEntity = ChatEntity.getById(chatId);
     		
     		if(chatId != userId) {
     			logger.info("chat message");
-    			//at the moment, automatically leave chat
-    			//update.getMessage().getNewChatMembers() for new members, bot included. If member is admin, bot remains
-    			LeaveChat leaveChat = new LeaveChat();
-    			leaveChat.setChatId(chatId);
-    			try {
-					bot.leaveChat(leaveChat);
-				} catch (TelegramApiException e) {
-					logger.error(e);
-				}
+
+    			if(update.getMessage().getNewChatMembers() != null) {
+    				List<User> newUsers = update.getMessage().getNewChatMembers();
+    				int botId = 0;
+					try {
+						botId = bot.getMe().getId();
+					} catch (TelegramApiException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+    				for(User u : newUsers) {
+    					if(u.getId() == botId) {
+    						if(userEntity.getRole().compareTo(UserRole.APPROVER) <=0) {
+    							sendTelegramMessage(chatId, "Ready to work!");
+    						}
+    						else {
+    			    			LeaveChat leaveChat = new LeaveChat();
+    			    			leaveChat.setChatId(chatId);
+    			    			try {
+    								bot.leaveChat(leaveChat);
+    							} catch (TelegramApiException e) {
+    								logger.error(e);
+    							}
+    						}
+    					}  					
+    					else if(chatEntity != null) {
+    	    				GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
+    	    				getChatAdministrators.setChatId(chatId);
+    	    				List<ChatMember> admins = null;
+    	    				try {
+    							admins = bot.getChatAdministrators(getChatAdministrators);
+    						} catch (TelegramApiException e) {
+    							// TODO Auto-generated catch block
+    							e.printStackTrace();
+    						}
+    	    				boolean isAdmin = false;
+    	    				for(ChatMember admin : admins) {
+    	    					if(admin.getUser().getId() == botId) isAdmin = true;
+    	    				}
+    	    				//if is not admin, no need to continue
+    	    				if( ! isAdmin) return;
+    	    				UserEntity entryUser = UserEntity.getById(u.getId().longValue());
+    						if(chatEntity.getRole().compareTo(ChatRole.PROTECTED) <= 0) {   							
+    							if(entryUser == null) {
+    								kickUnapprovedUser(chatId, u.getId());
+    								return;
+    							}
+    							else if (entryUser.getRole().compareTo(UserRole.ACCEPTED) > 0) {
+    								kickUnapprovedUser(chatId, u.getId());
+    								return;
+    							}
+    							else if (
+    									(entryUser.getRole().compareTo(UserRole.ADMIN) > 0 ) &&
+    									(chatEntity.getRole().compareTo(ChatRole.ADMIN) <= 0)
+    									) {
+    								kickUnapprovedUser(chatId, u.getId());
+    								return;
+    							}
+    						}
+    						
+    					}
+    				}    				
+    			}
     			return;
     		}   
     		
@@ -182,16 +239,6 @@ public class UpdateTask implements Runnable {
     					return;
     				}
     				//command admin+ (set custom, secure chat, members)
-    				/*
-    				GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
-    				getChatAdministrators.setChatId(chatId);
-    				try {
-						bot.getChatAdministrators(getChatAdministrators);
-					} catch (TelegramApiException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					*/
     			}
     			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
     				//set backlog
@@ -224,6 +271,18 @@ public class UpdateTask implements Runnable {
 		reply.setText(sanitize(text));
 		try {
 			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    }
+    
+    private void kickUnapprovedUser(long chatId, int userId) {
+    	KickChatMember kickChatMember = new KickChatMember();
+		kickChatMember.setChatId(chatId);
+		kickChatMember.setUserId(userId);
+		try {
+			bot.kickMember(kickChatMember);
 		} catch (TelegramApiException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

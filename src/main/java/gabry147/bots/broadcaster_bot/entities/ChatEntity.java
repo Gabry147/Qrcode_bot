@@ -68,4 +68,12 @@ public class ChatEntity implements Serializable{
     public void setAdded(Date added) {
         this.added = added;
     }
+
+	public ChatRole getRole() {
+		return role;
+	}
+
+	public void setRole(ChatRole role) {
+		this.role = role;
+	}
 }
