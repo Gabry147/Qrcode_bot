@@ -79,7 +79,7 @@ public class UpdateTask implements Runnable {
 				if(userEntity.getRole().compareTo(UserRole.ACCEPTED) <= 0) {
     				//command accepted+ (custom commands)
 					if( command.equals( PrivateCommand.COMMANDS.toString() ) ) {
-						//
+						return;
 					}
     			}
     			if(userEntity.getRole().compareTo(UserRole.APPROVER) <= 0) {
@@ -146,6 +146,17 @@ public class UpdateTask implements Runnable {
     					return;
     				}
     				else if( command.equals( PrivateCommand.BAN.toString() ) ) {
+    					String userToBanStringID = alphanumericalSplit[1];
+    					long userToBanID = Long.valueOf(userToBanStringID);
+    					UserEntity userToBan = UserEntity.getById(userToBanID);
+    					if(userToBan == null) {
+    						logger.info("Ban: "+userToBanID);
+    						userToBan = new UserEntity();
+    						userToBan.setUserId(userToBanID);
+    					}
+    					userToBan.setRole(UserRole.BANNED);
+    					UserEntity.saveUser(userToBan);
+    					sendUserInfo(chatId, userToBan);
     					return;
     				}
     				//placed after command code -> approver can forward commands
@@ -164,6 +175,7 @@ public class UpdateTask implements Runnable {
     					return;
     				}
     				//command admin+ (set custom, secure chat, members)
+    				/*
     				GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
     				getChatAdministrators.setChatId(chatId);
     				try {
@@ -172,12 +184,11 @@ public class UpdateTask implements Runnable {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
+					*/
     			}
     			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
     				//set backlog
-    			}
-    			
-    			
+    			} 			
     		}
     	}
     	
@@ -220,7 +231,10 @@ public class UpdateTask implements Runnable {
 				"Name: <b>" + sanitize(user.getFirstName()) + "</b>\n" +
 				"Username: @" + sanitize(user.getUserName()) + "\n" +
 				"<code>" + user.getId() +"</code>\n" +
-				"Role: " + role
+				"Role: " + role + "\n\n" +
+				"<code>/"+ PrivateCommand.PROMOTE +" "+user.getId()+ "</code>\n\n" +
+				"<code>/"+ PrivateCommand.DEMOTE +" "+user.getId()+ "</code>\n\n" +
+				"<code>/"+ PrivateCommand.BAN +" "+user.getId()+ "</code>"
 				);
 		try {
 			bot.sendMessage(reply);
