@@ -140,6 +140,13 @@ public class UpdateTask implements Runnable {
     								}
     							}
     						}
+    						else if (userEntity.getRole().compareTo(UserRole.OWNER) == 0) {
+    							if(userToDemote.getRole().compareTo(UserRole.OWNER) == 0) {
+    								userToDemote.setRole(UserRole.ADMIN);
+									logger.info("Demote owner: "+userToDemoteID);
+    							}
+    							
+    						}
     					}
     					UserEntity.saveUser(userToDemote);
     					sendUserInfo(chatId, userToDemote);
