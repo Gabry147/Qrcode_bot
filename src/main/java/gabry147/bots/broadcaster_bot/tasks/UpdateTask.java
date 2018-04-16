@@ -113,17 +113,29 @@ public class UpdateTask implements Runnable {
     					}
     				}    				
     			}
-    			return;
     		}   
     		
-			logger.info("private message");		
+			logger.info("private/command message");		
 			
 			String[] alphanumericalSplit = message.getText().split(" ");
 
 			String[] commandSplit = alphanumericalSplit[0].split("@");			
 			
 			if(commandSplit.length>1){
-                if(!commandSplit[1].equals(bot.getBotUsername())){
+				String botUsername = null;
+				try {
+					botUsername = bot.getMe().getUserName();
+				} catch (TelegramApiException e) {
+					e.printStackTrace();
+				}
+                if(!commandSplit[1].equals(botUsername)){
+                	System.out.println(commandSplit[1]);
+                	try {
+						System.out.println(bot.getMe().getUserName());
+					} catch (TelegramApiException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
                 	logger.info("message from another bot");
                     return;
                 }
@@ -223,7 +235,59 @@ public class UpdateTask implements Runnable {
     					sendUserInfo(chatId, userToBan);
     					return;
     				}
-    				//placed after command code -> approver can forward commands
+    			}
+    			if(userEntity.getRole().compareTo(UserRole.ADMIN) <= 0) {
+    				if( command.equals( PrivateCommand.SETCHAT.toString() ) ) {
+    					String chatType = alphanumericalSplit[1].toUpperCase();
+    					System.out.println(chatType);
+    					if(chatEntity != null) {
+    						sendTelegramMessage(chatId, "Chat already set for: "+chatEntity.getRole().toString());
+    					}
+    					else {
+    						ChatRole chatRole = null;
+    						if(chatType.equals(ChatRole.ADMIN.toString())) {
+    							chatRole = ChatRole.ADMIN;
+    						}
+    						else if(chatType.equals(ChatRole.PROTECTED.toString())) {
+    							chatRole = ChatRole.PROTECTED;
+    						}
+    						if(chatRole != null) {
+        						chatEntity = new ChatEntity();
+        						chatEntity.setAdded(new Date());
+        						chatEntity.setChatId(chatId);
+        						chatEntity.setRole(chatRole);
+        						ChatEntity.saveChat(chatEntity);
+        						sendTelegramChatInfo(chatId, chatEntity);
+    						}
+    						else {
+    							sendTelegramMessage(chatId, "Chat role not recognized");
+    						}
+    					}
+    					
+    				}
+    				else if( command.equals( PrivateCommand.REMOVECHAT.toString() ) ) {
+    					if(chatEntity == null) {
+    						sendTelegramMessage(chatId, "Chat not set, nothing to remove");
+    					}
+    					else {
+    						sendTelegramChatInfo(chatId, chatEntity);
+    						ChatEntity.removeChat(chatEntity);
+    						sendTelegramMessage(chatId, "Chat removed");    						
+    					}
+    				}
+    				else if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
+    					return;
+    				}
+    				//command admin+ (set custom, secure chat, members)
+    			}
+    			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
+    				if( command.equals( PrivateCommand.SETBACKLOG.toString() ) ) {
+    					return;
+    				}
+    			}
+    			
+    			if(chatId == userId && (userEntity.getRole().compareTo(UserRole.APPROVER)) <= 0) {
+    				logger.info("Private message");
     				if(message.getForwardFrom() != null) {
         				User forwardedUser = message.getForwardFrom();
         				UserEntity forwarderDBuser = UserEntity.getById(forwardedUser.getId().longValue());
@@ -231,22 +295,14 @@ public class UpdateTask implements Runnable {
         				if(forwarderDBuser != null) role = forwarderDBuser.getRole().toString();
         				updateUserDbInfo(forwardedUser);
         				sendTelegramUserInfo(chatId, forwardedUser, role);
-        				return; //with this line, it's impossible to admin to forward command
+        				return;
         			}
-    			}
-    			if(userEntity.getRole().compareTo(UserRole.ADMIN) <= 0) {
-    				if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
-    					return;
-    				}
-    				//command admin+ (set custom, secure chat, members)
-    			}
-    			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
-    				//set backlog
-    			} 			
-    		}
-    	}
-    	
-    }
+    			}   			
+
+    		} //end if userEntity != null
+			
+    	} //end if update.hasMessage()
+    } // end run
     
     private String sanitize(String toSanitize) {
     	//replace & must be first or it will destroy all sanitizations
@@ -301,6 +357,25 @@ public class UpdateTask implements Runnable {
 				"<code>/"+ PrivateCommand.PROMOTE +" "+user.getId()+ "</code>\n\n" +
 				"<code>/"+ PrivateCommand.DEMOTE +" "+user.getId()+ "</code>\n\n" +
 				"<code>/"+ PrivateCommand.BAN +" "+user.getId()+ "</code>"
+				);
+		try {
+			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    }
+    
+    private void sendTelegramChatInfo(long chatId, ChatEntity chat) {
+    	SendMessage reply = new SendMessage();
+		reply.setChatId(chatId);
+		reply.enableHtml(true);
+		reply.setText(
+				"<b>Chat ID:</b> " + chat.getChatId() + "\n" +
+				"<b>Added:</b> " + chat.getAdded().toString() + "\n" +
+				"<b>Role:</b> " + chat.getRole().toString() + "\n\n" +
+				"For removing:\n" +
+				"<code>/"+ PrivateCommand.REMOVECHAT +"</code>"
 				);
 		try {
 			bot.sendMessage(reply);
