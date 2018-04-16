@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Set;
 
 @Entity
+@NamedQuery(name = "UserEntity.findAll",query = "SELECT u FROM UserEntity u")
 @Table(name = "users")
 public class UserEntity implements Serializable {
     @Id
@@ -29,6 +30,13 @@ public class UserEntity implements Serializable {
 
         return u;
     }
+    
+    public static List<UserEntity> getAll(){
+        EntityManager em=Broadcaster_BotDao.instance.createEntityManager();
+        List<UserEntity> userEntities = em.createNamedQuery("UserEntity.findAll").getResultList();
+        Broadcaster_BotDao.instance.closeConnections(em);
+        return userEntities;
+    }
 
     public static UserEntity saveUser(UserEntity u){
         EntityManager em=Broadcaster_BotDao.instance.createEntityManager();
@@ -39,6 +47,16 @@ public class UserEntity implements Serializable {
         Broadcaster_BotDao.instance.closeConnections(em);
 
         return u;
+    }
+    
+    public static void deleteUser(UserEntity u){
+        EntityManager em=Broadcaster_BotDao.instance.createEntityManager();
+        EntityTransaction tx=em.getTransaction();
+        tx.begin();
+        u=em.merge(u);
+        em.remove(u);
+        tx.commit();
+        Broadcaster_BotDao.instance.closeConnections(em);
     }
 
     public long getUserId() {

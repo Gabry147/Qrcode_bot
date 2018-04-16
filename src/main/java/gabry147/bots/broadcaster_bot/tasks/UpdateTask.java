@@ -12,6 +12,7 @@ import org.apache.log4j.Logger;
 import org.telegram.telegrambots.api.methods.groupadministration.GetChatAdministrators;
 import org.telegram.telegrambots.api.methods.groupadministration.KickChatMember;
 import org.telegram.telegrambots.api.methods.groupadministration.LeaveChat;
+import org.telegram.telegrambots.api.methods.pinnedmessages.PinChatMessage;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.*;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
@@ -45,8 +46,8 @@ public class UpdateTask implements Runnable {
     			if(userEntity.getRole().equals(UserRole.BANNED)) {
     				return;
     			}
-    		}
-    		updateUserDbInfo(message.getFrom());
+    			updateUserDbInfo(message.getFrom());
+    		}   		
     		ChatEntity chatEntity = ChatEntity.getById(chatId);
     		
     		if(chatId != userId) {
@@ -218,6 +219,27 @@ public class UpdateTask implements Runnable {
     					sendUserInfo(chatId, userToBan);
     					return;
     				}
+    				else if( command.equals( PrivateCommand.PIN.toString() ) ) {
+    					if(! botIsAdmin(chatId, botId)) {
+    						sendTelegramMessage(chatId, "Bot is not chat admin");
+    						return;
+    					}
+    					Message messageToPin = message.getReplyToMessage();
+    					if(messageToPin == null) {
+    						sendTelegramMessage(chatId, "Nothing to pin. Please answer /"+PrivateCommand.PIN+" to the message you want to pin.");
+    						return;
+    					}
+    					PinChatMessage pinChatMessage = new PinChatMessage();
+    					pinChatMessage.setChatId(chatId);
+    					pinChatMessage.setMessageId(messageToPin.getMessageId());
+    					try {
+							bot.pinChatMessage(pinChatMessage);
+						} catch (TelegramApiException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+    					return;
+    				}
     			}
     			if(userEntity.getRole().compareTo(UserRole.ADMIN) <= 0) {
     				if( command.equals( PrivateCommand.SETCHAT.toString() ) ) {
@@ -277,13 +299,30 @@ public class UpdateTask implements Runnable {
     						sendTelegramMessage(chatId, "Chat removed");    						
     					}
     				}
+    				else if( command.equals( PrivateCommand.USERS.toString() ) ) {
+    					List<UserEntity> members = UserEntity.getAll();
+    					sendUserInfoList(chatId, members);
+    				}
     				else if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
     					return;
     				}
-    				//command admin+ (set custom, secure chat, members)
     			}
     			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
     				if( command.equals( PrivateCommand.SETBACKLOG.toString() ) ) {
+    					return;
+    				}
+    				else if( command.equals( PrivateCommand.DELETEUSER.toString() ) ) {
+    					String userToDeleteString = alphanumericalSplit[1];
+    					long userToDeleteID = Long.valueOf(userToDeleteString);
+    					UserEntity userToDelete = UserEntity.getById(userToDeleteID);
+    					if(userToDelete == null) {
+    						sendTelegramMessage(chatId, "No user to delete");
+    					}
+    					else {
+    						sendUserInfo(chatId, userToDelete);
+    						UserEntity.deleteUser(userToDelete);
+    						sendTelegramMessage(chatId, "Deleted!");
+    					}
     					return;
     				}
     			}
@@ -305,8 +344,8 @@ public class UpdateTask implements Runnable {
 			
     	} //end if update.hasMessage()
     } // end run
-    
-    private String sanitize(String toSanitize) {
+
+	private String sanitize(String toSanitize) {
     	//replace & must be first or it will destroy all sanitizations
     	return toSanitize.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
     }
@@ -334,6 +373,26 @@ public class UpdateTask implements Runnable {
 			e.printStackTrace();
 		}
     }
+    
+    private void sendUserInfoList(long chatId, List<UserEntity> members) {
+    	SendMessage reply = new SendMessage();
+		reply.setChatId(chatId);
+		reply.enableHtml(true);
+		String text = "";
+		
+		for(UserEntity u : members) {
+			text = text + sanitize("@"+u.getUsername()) + "  <code>"+u.getUserId()+"</code>  "+sanitize(u.getRole().toString())+"\n";
+		}
+		
+		reply.setText(text);		
+		try {
+			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+	}
     
     private void kickUnapprovedUser(long chatId, int userId) {
     	KickChatMember kickChatMember = new KickChatMember();
