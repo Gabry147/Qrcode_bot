@@ -49,8 +49,17 @@ public class ChatEntity implements Serializable{
         c=em.merge(c);
         tx.commit();
         Broadcaster_BotDao.instance.closeConnections(em);
-
         return c;
+    }
+    
+    public static void removeChat(ChatEntity c){
+        EntityManager em=Broadcaster_BotDao.instance.createEntityManager();
+        EntityTransaction tx=em.getTransaction();
+        tx.begin();
+        c=em.merge(c);
+        em.remove(c);
+        tx.commit();
+        Broadcaster_BotDao.instance.closeConnections(em);
     }
 
     public long getChatId() {
