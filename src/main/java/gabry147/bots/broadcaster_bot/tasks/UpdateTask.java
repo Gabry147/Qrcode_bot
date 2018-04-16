@@ -38,6 +38,7 @@ public class UpdateTask implements Runnable {
     		logger.info(message);
     		long chatId = message.getChat().getId().longValue();
     		long userId = message.getFrom().getId().longValue();
+    		int botId = getBotID();
     		
     		UserEntity userEntity = UserEntity.getById(userId);
     		if(userEntity != null) {
@@ -53,13 +54,6 @@ public class UpdateTask implements Runnable {
 
     			if(update.getMessage().getNewChatMembers() != null) {
     				List<User> newUsers = update.getMessage().getNewChatMembers();
-    				int botId = 0;
-					try {
-						botId = bot.getMe().getId();
-					} catch (TelegramApiException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
     				for(User u : newUsers) {
     					if(u.getId() == botId) {
     						if(userEntity.getRole().compareTo(UserRole.APPROVER) <=0) {
@@ -76,21 +70,10 @@ public class UpdateTask implements Runnable {
     						}
     					}  					
     					else if(chatEntity != null) {
-    	    				GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
-    	    				getChatAdministrators.setChatId(chatId);
-    	    				List<ChatMember> admins = null;
-    	    				try {
-    							admins = bot.getChatAdministrators(getChatAdministrators);
-    						} catch (TelegramApiException e) {
-    							// TODO Auto-generated catch block
-    							e.printStackTrace();
-    						}
-    	    				boolean isAdmin = false;
-    	    				for(ChatMember admin : admins) {
-    	    					if(admin.getUser().getId() == botId) isAdmin = true;
+    	    				if( ! botIsAdmin(chatId, botId)) {
+    	    					sendTelegramMessage(chatId, "Chat seems to be set, but bot is not admin!");
+    	    					return;
     	    				}
-    	    				//if is not admin, no need to continue
-    	    				if( ! isAdmin) return;
     	    				UserEntity entryUser = UserEntity.getById(u.getId().longValue());
     						if(chatEntity.getRole().compareTo(ChatRole.PROTECTED) <= 0) {   							
     							if(entryUser == null) {
@@ -252,12 +235,31 @@ public class UpdateTask implements Runnable {
     							chatRole = ChatRole.PROTECTED;
     						}
     						if(chatRole != null) {
+    							GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
+        	    				getChatAdministrators.setChatId(chatId);
+        	    				List<ChatMember> admins = null;
+        	    				try {
+        							admins = bot.getChatAdministrators(getChatAdministrators);
+        						} catch (TelegramApiException e) {
+        							// TODO Auto-generated catch block
+        							e.printStackTrace();
+        						}
+        	    				boolean isAdmin = false;
+        	    				for(ChatMember admin : admins) {
+        	    					if(admin.getUser().getId() == botId) isAdmin = true;
+        	    				}
+        	    				//if is not admin, no need to continue
+        	    				if( ! isAdmin) {
+        	    					sendTelegramMessage(chatId, "Bot must be chat admin for this feature");
+        	    					return;
+        	    				}
         						chatEntity = new ChatEntity();
         						chatEntity.setAdded(new Date());
         						chatEntity.setChatId(chatId);
         						chatEntity.setRole(chatRole);
         						ChatEntity.saveChat(chatEntity);
         						sendTelegramChatInfo(chatId, chatEntity);
+        						return;
     						}
     						else {
     							sendTelegramMessage(chatId, "Chat role not recognized");
@@ -270,7 +272,7 @@ public class UpdateTask implements Runnable {
     						sendTelegramMessage(chatId, "Chat not set, nothing to remove");
     					}
     					else {
-    						sendTelegramChatInfo(chatId, chatEntity);
+    						sendTelegramMessage(chatId, "Chat with role: "+chatEntity.getRole().toString()+" will be removed"); 
     						ChatEntity.removeChat(chatEntity);
     						sendTelegramMessage(chatId, "Chat removed");    						
     					}
@@ -402,5 +404,32 @@ public class UpdateTask implements Runnable {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+    }
+    
+    private int getBotID() {
+		int botId = 0;
+		try {
+			botId = bot.getMe().getId();
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return botId;
+    }
+    
+    private boolean botIsAdmin(long chatId, int botId) {
+    	GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
+		getChatAdministrators.setChatId(chatId);
+		List<ChatMember> admins = null;
+		try {
+			admins = bot.getChatAdministrators(getChatAdministrators);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		for(ChatMember admin : admins) {
+			if(admin.getUser().getId() == botId) return true;
+		}
+		return false;
     }
 }
