@@ -133,6 +133,12 @@ public class UpdateTask implements Runnable {
 			// save command and remove /
 			String command = commandSplit[0].substring(1).toUpperCase();
 
+			if( command.equals( "START" ) ) {
+				sendTelegramMessage(chatId, "Welcome! This bot help to create a protected community of chats.\n"
+						+ "You must be approved to use the functionalities of this bot");
+				return;
+			}
+			
 			//user is in db
 			if(userEntity != null) {
 				if(userEntity.getRole().compareTo(UserRole.ACCEPTED) <= 0) {
