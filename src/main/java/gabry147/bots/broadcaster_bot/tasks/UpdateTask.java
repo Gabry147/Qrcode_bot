@@ -100,7 +100,12 @@ public class UpdateTask implements Runnable {
     			}
     		}   
     		
-			logger.info("private/command message");		
+			logger.info("private/command message");
+			
+			if(! message.hasText()) {
+				//chat creation or media, nothing to do atm
+				return;
+			}
 			
 			String[] alphanumericalSplit = message.getText().split(" ");
 
