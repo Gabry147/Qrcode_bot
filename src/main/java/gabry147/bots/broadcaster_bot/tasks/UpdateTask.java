@@ -313,17 +313,21 @@ public class UpdateTask implements Runnable {
     						sendTelegramMessage(chatId, "Chat removed");    						
     					}
     				}
-    				else if( command.equals( PrivateCommand.USERS.toString() ) ) {
-    					List<UserEntity> members = UserEntity.getAll();
-    					sendUserInfoList(chatId, members);
-    				}
     				else if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
+    					return;
+    				}
+    				else if( command.equals( PrivateCommand.SETCOMMAND.toString() ) ) {
+    					//TODO
     					return;
     				}
     			}
     			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
     				if( command.equals( PrivateCommand.SETBACKLOG.toString() ) ) {
     					return;
+    				}
+    				else if( command.equals( PrivateCommand.USERS.toString() ) ) {
+    					List<UserEntity> members = UserEntity.getAll();
+    					sendUserInfoList(chatId, members);
     				}
     				else if( command.equals( PrivateCommand.DELETEUSER.toString() ) ) {
     					String userToDeleteString = alphanumericalSplit[1];
@@ -354,10 +358,57 @@ public class UpdateTask implements Runnable {
         			}
     			}   			
 
-    		} //end if userEntity != null
-			
+    		} //end if userEntity != null			
     	} //end if update.hasMessage()
     } // end run
+
+	private String processMessageToBeStorable(Message message) {
+		String textMessage = message.getText();
+		String messageToForward = "";
+		List<MessageEntity> entities = message.getEntities();
+		MessageEntity firstCommand = entities.remove(0);
+		//need a +1 to skip \n. Also, TG gives error is firstchar is \n
+		int previousStop = textMessage.indexOf("\n")+1;
+		for(MessageEntity me : entities) {
+			int start = me.getOffset();
+			int finish = me.getOffset() + me.getLength();
+			//add previous not entity part
+			messageToForward += textMessage.substring(previousStop, start);
+			//TODO: put <> based on entityType
+			switch(me.getType()) {
+				case "mention":
+				case "hashtag":
+				case "bot_command":
+				case "url":
+				case "email":
+					messageToForward += sanitize(textMessage.substring(start, finish));
+					break;
+				case "bold": 
+					messageToForward += "<b>" + sanitize(textMessage.substring(start, finish)) +"</b>"; 
+					break;
+				case "italic": 
+					messageToForward += "<i>" + sanitize(textMessage.substring(start, finish)) +"</i>"; 
+					break;
+				case "code": 
+					messageToForward += "<code>" + sanitize(textMessage.substring(start, finish)) +"</code>"; 
+					break;
+				case "pre": 
+					messageToForward += "<pre>" + sanitize(textMessage.substring(start, finish)) +"</pre>"; 
+					break;
+				case "text_link": 
+					messageToForward += "<a href='"+me.getUrl()+"'>" + sanitize(textMessage.substring(start, finish)) +"</a>"; 
+					break;
+				case "text_mention": 
+					messageToForward += "<a href='tg://user?id="+me.getUser().getId()+"'>" + 
+							sanitize(textMessage.substring(start, finish)) +"</a>"; 
+					break;
+			}
+			previousStop=finish;
+		}
+		//add tail not entity
+		messageToForward += textMessage.substring(previousStop);
+		return messageToForward;
+	}
 
 	private String sanitize(String toSanitize) {
     	//replace & must be first or it will destroy all sanitizations
@@ -376,10 +427,14 @@ public class UpdateTask implements Runnable {
     }
     
     private void sendTelegramMessage(long chatId, String text) {
+    	sendTelegramMarkDownMessage(chatId, sanitize(text), false);
+    }
+    
+    private void sendTelegramMarkDownMessage(long chatId, String text, boolean markdown) {
     	SendMessage reply = new SendMessage();
 		reply.setChatId(chatId);
-		reply.enableHtml(true);
-		reply.setText(sanitize(text));
+		reply.enableHtml(markdown);
+		reply.setText(text);
 		try {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
