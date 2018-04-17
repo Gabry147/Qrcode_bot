@@ -403,9 +403,15 @@ public class UpdateTask implements Runnable {
 	}
     
     private void kickUnapprovedUser(long chatId, int userId) {
+    	kickBanUnapprovedUser(chatId, userId, 60);
+    }
+    
+    private void kickBanUnapprovedUser(long chatId, int userId, int time) {
     	KickChatMember kickChatMember = new KickChatMember();
 		kickChatMember.setChatId(chatId);
 		kickChatMember.setUserId(userId);
+		//kick for 1 minute
+		kickChatMember.setUntilDate((int)(System.currentTimeMillis()/1000)+time);
 		try {
 			bot.kickMember(kickChatMember);
 		} catch (TelegramApiException e) {
@@ -428,7 +434,8 @@ public class UpdateTask implements Runnable {
 				e.printStackTrace();
 			}
     		if(chatMember != null) {
-    			kickUnapprovedUser(c.getChatId(), (int)userId);
+    			//ban from chat is for ever
+    			kickBanUnapprovedUser(c.getChatId(), (int)userId, 5);
     		}
     	}
     }
