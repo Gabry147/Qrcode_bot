@@ -111,7 +111,7 @@ public class UpdateTask implements Runnable {
 
 			String[] commandSplit = alphanumericalSplit[0].split("@");			
 			
-			if(commandSplit.length>1){
+			if(commandSplit.length>1 && commandSplit[0].startsWith("/")){
 				String botUsername = null;
 				try {
 					botUsername = bot.getMe().getUserName();
