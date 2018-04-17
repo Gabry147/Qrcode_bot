@@ -10,6 +10,7 @@ import gabry147.bots.broadcaster_bot.entities.extra.UserRole;
 
 import org.apache.log4j.Logger;
 import org.telegram.telegrambots.api.methods.groupadministration.GetChatAdministrators;
+import org.telegram.telegrambots.api.methods.groupadministration.GetChatMember;
 import org.telegram.telegrambots.api.methods.groupadministration.KickChatMember;
 import org.telegram.telegrambots.api.methods.groupadministration.LeaveChat;
 import org.telegram.telegrambots.api.methods.pinnedmessages.PinChatMessage;
@@ -216,6 +217,8 @@ public class UpdateTask implements Runnable {
     					}
     					userToBan.setRole(UserRole.BANNED);
     					UserEntity.saveUser(userToBan);
+    					sendTelegramMessage(chatId, "Banning...");
+    					banFromChats(userToBan.getUserId());
     					sendUserInfo(chatId, userToBan);
     					return;
     				}
@@ -404,6 +407,25 @@ public class UpdateTask implements Runnable {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+    }
+    
+    private void banFromChats(long userId) {
+    	List<ChatEntity> chats = ChatEntity.getAll();
+    	for(ChatEntity c : chats) {
+    		GetChatMember getChatMember = new GetChatMember();
+    		getChatMember.setChatId(c.getChatId());
+    		getChatMember.setUserId((int)userId);
+    		ChatMember chatMember = null; //new ChatMember();
+    		try {
+				chatMember = bot.getChatMember(getChatMember);
+			} catch (TelegramApiException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    		if(chatMember != null) {
+    			kickUnapprovedUser(c.getChatId(), (int)userId);
+    		}
+    	}
     }
     
     private void sendTelegramUserInfo(long chatId, User user, String role) {
