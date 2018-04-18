@@ -2,6 +2,7 @@ package gabry147.bots.broadcaster_bot.tasks;
 
 import gabry147.bots.broadcaster_bot.Broadcaster_bot;
 import gabry147.bots.broadcaster_bot.entities.ChatEntity;
+import gabry147.bots.broadcaster_bot.entities.CommandEntity;
 import gabry147.bots.broadcaster_bot.entities.UserEntity;
 import gabry147.bots.broadcaster_bot.entities.extra.ChatRole;
 import gabry147.bots.broadcaster_bot.entities.extra.UserRole;
@@ -18,6 +19,7 @@ import org.telegram.telegrambots.exceptions.TelegramApiException;
 import org.telegram.telegrambots.exceptions.TelegramApiRequestException;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class UpdateTask implements Runnable {
 
@@ -152,7 +154,13 @@ public class UpdateTask implements Runnable {
 				if(userEntity.getRole().compareTo(UserRole.ACCEPTED) <= 0) {
     				//command accepted+ (custom commands)
 					if( command.equals( PrivateCommand.COMMANDS.toString() ) ) {
+						sendCommandInfoList(chatId);
 						return;
+					}
+					else if(CommandEntity.getById(command) != null) {
+						sendTelegramHtmlMessage(chatId,
+								CommandEntity.getById(command).getBody(),
+								true);
 					}
     			}
     			if(userEntity.getRole().compareTo(UserRole.APPROVER) <= 0) {
@@ -353,7 +361,48 @@ public class UpdateTask implements Runnable {
     					return;
     				}
     				else if( command.equals( PrivateCommand.SETCOMMAND.toString() ) ) {
-    					//TODO
+    					String[] commandAndBody = message.getText().split("\n");
+    					if(commandAndBody.length < 2) {
+    						//TODO
+    						logger.info("setcommand error, \\n not found");
+    						return;
+    					}
+    					String[] setAndCommandId = commandAndBody[0].split(" ");
+    					if(setAndCommandId.length != 2) {
+    						//TODO
+    						logger.info("setcommand error, commandId not found");
+    						return;
+    					}
+    					String commandId = setAndCommandId[1].toUpperCase();
+    					Pattern p = Pattern.compile("[^a-zA-Z0-9]");
+    					if(p.matcher(commandId).find()) {
+    						//TODO
+    						logger.info("setcommand error, commandId not alphanumerical");
+    						return;
+    					}
+    					for(PrivateCommand pc : PrivateCommand.values()) {
+    						if((commandId.toUpperCase()) == pc.toString()) {
+    							//TODO
+    							logger.info("setcommand error, reserved command");
+    							return;
+    						}
+    					}
+    					
+    					CommandEntity proposedCommand = CommandEntity.getById(commandId);
+    					if(proposedCommand == null) {
+    						proposedCommand = new CommandEntity();
+    						proposedCommand.setCommandId(commandId);
+    					}
+    					else {
+    						sendTelegramHtmlMessage(chatId,
+    								"<b>Command already set, previous body:</b>\n" + proposedCommand.getBody(), 
+    								true);
+    					}
+    					proposedCommand.setBody(
+    							processMessageToBeStorable(message)
+    							);
+    					CommandEntity.saveCommand(proposedCommand);
+    					sendTelegramMessage(chatId, "Command set!");
     					return;
     				}
     			}
@@ -469,10 +518,10 @@ public class UpdateTask implements Runnable {
     }
     
     private void sendTelegramMessage(long chatId, String text) {
-    	sendTelegramMarkDownMessage(chatId, sanitize(text), false);
+    	sendTelegramHtmlMessage(chatId, text, false);
     }
     
-    private void sendTelegramMarkDownMessage(long chatId, String text, boolean markdown) {
+    private void sendTelegramHtmlMessage(long chatId, String text, boolean markdown) {
     	SendMessage reply = new SendMessage();
 		reply.setChatId(chatId);
 		reply.enableHtml(markdown);
@@ -523,6 +572,26 @@ public class UpdateTask implements Runnable {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
 			logger.error("Error sending list of chats");
+			e.printStackTrace();
+		}	
+    }
+    
+    private void sendCommandInfoList(long chatId) {
+    	SendMessage reply = new SendMessage();
+		reply.setChatId(chatId);
+		reply.enableHtml(true);
+		String text = "<b>Commands:</b>\n";
+		
+		List<CommandEntity> commands = CommandEntity.getAll();
+		for(CommandEntity c : commands) {
+			text = text + "/" +c.getCommandId() + "\n";
+		}
+		
+		reply.setText(text);		
+		try {
+			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			logger.error("Error sending list of commands");
 			e.printStackTrace();
 		}	
     }
