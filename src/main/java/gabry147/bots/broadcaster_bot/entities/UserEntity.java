@@ -17,6 +17,7 @@ public class UserEntity implements Serializable {
     @Column(name="user_id")
     private long userId;
 
+    @Column(name="username")
     private String username;
 
     @Enumerated(EnumType.STRING)

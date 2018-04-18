@@ -17,6 +17,7 @@ import org.telegram.telegrambots.api.methods.pinnedmessages.PinChatMessage;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.*;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
+import org.telegram.telegrambots.exceptions.TelegramApiRequestException;
 
 import java.util.*;
 
@@ -72,6 +73,7 @@ public class UpdateTask implements Runnable {
     						}
     					}  					
     					else if(chatEntity != null) {
+    		    			updateChatDbInfo(message.getChat());
     	    				if( ! botIsAdmin(chatId, botId)) {
     	    					sendTelegramMessage(chatId, "Chat seems to be set, but bot is not admin!");
     	    					return;
@@ -97,8 +99,18 @@ public class UpdateTask implements Runnable {
     						
     					}
     				}    				
+    			} //end if newMembers
+    			//message from group chat with that is not a new member
+    			//if it's not a command, ignore it
+    			if(! message.hasText()) {
+    				//chat creation or media, nothing to do atm
+    				return;
     			}
-    		}   
+    			if(! message.getText().startsWith("/")) {
+    				//normal group chat message (probably bot is tagged and/or admin), nothing to do atm
+    				return;
+    			}
+    		} //end if(chatId != userId) 
     		
 			logger.info("private/command message");
 			
@@ -226,6 +238,10 @@ public class UpdateTask implements Runnable {
     						userToBan = new UserEntity();
     						userToBan.setUserId(userToBanID);
     					}
+    					else if( userEntity.getRole().compareTo(userToBan.getRole()) > 0) {
+    						sendTelegramMessage(chatId, "You don't have permission");
+    						return;
+    					}
     					userToBan.setRole(UserRole.BANNED);
     					UserEntity.saveUser(userToBan);
     					sendTelegramMessage(chatId, "Banning...");
@@ -292,6 +308,7 @@ public class UpdateTask implements Runnable {
         						chatEntity = new ChatEntity();
         						chatEntity.setAdded(new Date());
         						chatEntity.setChatId(chatId);
+        						chatEntity.setTitle(message.getChat().getTitle());
         						chatEntity.setRole(chatRole);
         						ChatEntity.saveChat(chatEntity);
         						sendTelegramChatInfo(chatId, chatEntity);
@@ -304,14 +321,36 @@ public class UpdateTask implements Runnable {
     					
     				}
     				else if( command.equals( PrivateCommand.REMOVECHAT.toString() ) ) {
-    					if(chatEntity == null) {
-    						sendTelegramMessage(chatId, "Chat not set, nothing to remove");
+    					System.out.println(alphanumericalSplit.length);
+    					if(alphanumericalSplit.length == 1) {
+    						if(chatEntity == null) {
+        						sendTelegramMessage(chatId, "Chat not set, nothing to remove");
+        					}
+        					else {
+        						sendTelegramMessage(chatId, "Chat with role: "+chatEntity.getRole().toString()+" will be removed"); 
+        						ChatEntity.removeChat(chatEntity);
+        						sendTelegramMessage(chatId, "Chat removed");    						
+        					}
     					}
     					else {
-    						sendTelegramMessage(chatId, "Chat with role: "+chatEntity.getRole().toString()+" will be removed"); 
-    						ChatEntity.removeChat(chatEntity);
-    						sendTelegramMessage(chatId, "Chat removed");    						
+    						String chatToRemoveStringID = alphanumericalSplit[1];
+        					long chatToRemoveID = Long.valueOf(chatToRemoveStringID);
+        					ChatEntity chatToRemove = ChatEntity.getById(chatToRemoveID);
+        					if(chatToRemove == null) {
+        						sendTelegramMessage(chatId, "Chat ID not found, nothing to remove");
+        					}
+        					else {
+        						sendTelegramMessage(chatId, "Chat "+ chatToRemove.getTitle() +" with role: "+chatToRemove.getRole().toString()+" will be removed"); 
+        						sendTelegramMessage(chatToRemove.getChatId(), "Chat protection will be disabled");
+        						ChatEntity.removeChat(chatToRemove);
+        						sendTelegramMessage(chatId, "Chat removed");  
+        					}
     					}
+    					
+    				}
+    				else if( command.equals( PrivateCommand.CHATS.toString() ) ) {
+    					List<ChatEntity> chats = ChatEntity.getAll();
+    					sendChatInfoList(chatId, chats);
     				}
     				else if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
     					return;
@@ -426,6 +465,13 @@ public class UpdateTask implements Runnable {
     	UserEntity.saveUser(dbUser);
     }
     
+    private void updateChatDbInfo(Chat chat) {
+    	ChatEntity dbChat = ChatEntity.getById(chat.getId().longValue());
+    	if(dbChat == null) return;
+		dbChat.setTitle(chat.getTitle());
+    	ChatEntity.saveChat(dbChat);
+    }
+    
     private void sendTelegramMessage(long chatId, String text) {
     	sendTelegramMarkDownMessage(chatId, sanitize(text), false);
     }
@@ -450,7 +496,7 @@ public class UpdateTask implements Runnable {
 		String text = "";
 		
 		for(UserEntity u : members) {
-			text = text + sanitize("@"+u.getUsername()) + "  <code>"+u.getUserId()+"</code>  "+sanitize(u.getRole().toString())+"\n";
+			text = text + "@"+sanitize(u.getUsername()) + "  <code>"+u.getUserId()+"</code>  "+sanitize(u.getRole().toString())+"\n";
 		}
 		
 		reply.setText(text);		
@@ -462,6 +508,28 @@ public class UpdateTask implements Runnable {
 		}
 		
 	}
+    
+    private void sendChatInfoList(long chatId, List<ChatEntity> members) {
+    	SendMessage reply = new SendMessage();
+		reply.setChatId(chatId);
+		reply.enableHtml(true);
+		String text = "<b>Chats:</b>\n";
+		
+		for(ChatEntity c : members) {
+			text = text + "<code>"+c.getChatId()+"</code>  "
+					+ sanitize(c.getRole().toString()) + "\n"
+					+ "<b>Title:</b> "+sanitize(c.getTitle())
+					+ "\nAdded: " + c.getAdded().toString() + "\n\n";
+		}
+		
+		reply.setText(text);		
+		try {
+			bot.sendMessage(reply);
+		} catch (TelegramApiException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}	
+    }
     
     private void kickUnapprovedUser(long chatId, int userId) {
     	kickBanUnapprovedUser(chatId, userId, 60);
@@ -491,8 +559,12 @@ public class UpdateTask implements Runnable {
     		try {
 				chatMember = bot.getChatMember(getChatMember);
 			} catch (TelegramApiException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+				if(e instanceof TelegramApiRequestException) {
+					logger.error("Ban request not accepted, maybe admin?");
+				}
+				else {
+					e.printStackTrace();
+				}
 			}
     		if(chatMember != null) {
     			//ban from chat is for ever
@@ -517,8 +589,12 @@ public class UpdateTask implements Runnable {
 		try {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			if(e instanceof TelegramApiRequestException) {
+				logger.error("User info not accepted, ???");
+			}
+			else {
+				e.printStackTrace();
+			}
 		}
     }
     
@@ -531,13 +607,17 @@ public class UpdateTask implements Runnable {
 				"<b>Added:</b> " + chat.getAdded().toString() + "\n" +
 				"<b>Role:</b> " + chat.getRole().toString() + "\n\n" +
 				"For removing:\n" +
-				"<code>/"+ PrivateCommand.REMOVECHAT +"</code>"
+				"<code>/"+ PrivateCommand.REMOVECHAT +" "+ chat.getChatId() +"</code>"
 				);
 		try {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			if(e instanceof TelegramApiRequestException) {
+				logger.error("Chat info not accepted, ???");
+			}
+			else {
+				e.printStackTrace();
+			}
 		}
     }
     

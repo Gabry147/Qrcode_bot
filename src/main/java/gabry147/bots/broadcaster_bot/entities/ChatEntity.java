@@ -22,6 +22,9 @@ public class ChatEntity implements Serializable{
     @Column(name = "added")
     private Date added;
     
+    @Column(name="title")
+    private String title;
+    
     @Enumerated(EnumType.ORDINAL)
     @Column(name="role")
     private ChatRole role;
@@ -84,5 +87,13 @@ public class ChatEntity implements Serializable{
 
 	public void setRole(ChatRole role) {
 		this.role = role;
+	}
+
+	public String getTitle() {
+		return title;
+	}
+
+	public void setTitle(String title) {
+		this.title = title;
 	}
 }
