@@ -405,6 +405,21 @@ public class UpdateTask implements Runnable {
     					sendTelegramMessage(chatId, "Command set!");
     					return;
     				}
+    				else if( command.equals( PrivateCommand.DELETECOMMAND.toString() ) ) {
+    					if(alphanumericalSplit.length < 2) {
+    						//TODO
+    						return;
+    					}
+    					String commandId = alphanumericalSplit[1].toUpperCase();
+    					CommandEntity commandToDelete = CommandEntity.getById(commandId);
+    					if(commandToDelete != null) {
+    						CommandEntity.deleteCommand(commandToDelete);
+    						sendTelegramMessage(chatId, "Command deleted!");
+    					}
+    					else {
+    						sendTelegramMessage(chatId, "Nothing to delete!");
+    					}
+    				}
     			}
     			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
     				if( command.equals( PrivateCommand.SETBACKLOG.toString() ) ) {
