@@ -1,7 +1,5 @@
 package gabry147.bots.broadcaster_bot.tasks;
 
-import com.vdurmont.emoji.EmojiParser;
-
 import gabry147.bots.broadcaster_bot.Broadcaster_bot;
 import gabry147.bots.broadcaster_bot.entities.ChatEntity;
 import gabry147.bots.broadcaster_bot.entities.UserEntity;
@@ -25,8 +23,6 @@ public class UpdateTask implements Runnable {
 
     public static Logger logger=Logger.getLogger(UpdateTask.class);
 
-    private final static String CHARSET="UTF-8"; // or "ISO-8859-1"
-
     private Broadcaster_bot bot;
     private Update update;
 
@@ -38,7 +34,7 @@ public class UpdateTask implements Runnable {
     public void run() {
     	if(update.hasMessage()) {
     		Message message = update.getMessage();
-    		logger.info(message);
+    		//logger.info(message);
     		long chatId = message.getChat().getId().longValue();
     		long userId = message.getFrom().getId().longValue();
     		int botId = getBotID();
@@ -135,7 +131,7 @@ public class UpdateTask implements Runnable {
                 	try {
 						System.out.println(bot.getMe().getUserName());
 					} catch (TelegramApiException e) {
-						// TODO Auto-generated catch block
+						logger.error("Error retriving bot itself");
 						e.printStackTrace();
 					}
                 	logger.info("message from another bot");
@@ -265,7 +261,7 @@ public class UpdateTask implements Runnable {
     					try {
 							bot.pinChatMessage(pinChatMessage);
 						} catch (TelegramApiException e) {
-							// TODO Auto-generated catch block
+							logger.error("error on pin even if admin");
 							e.printStackTrace();
 						}
     					return;
@@ -293,7 +289,7 @@ public class UpdateTask implements Runnable {
         	    				try {
         							admins = bot.getChatAdministrators(getChatAdministrators);
         						} catch (TelegramApiException e) {
-        							// TODO Auto-generated catch block
+        							logger.error("Error getting chat admins");
         							e.printStackTrace();
         						}
         	    				boolean isAdmin = false;
@@ -353,6 +349,7 @@ public class UpdateTask implements Runnable {
     					sendChatInfoList(chatId, chats);
     				}
     				else if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
+    					//TODO
     					return;
     				}
     				else if( command.equals( PrivateCommand.SETCOMMAND.toString() ) ) {
@@ -413,7 +410,6 @@ public class UpdateTask implements Runnable {
 			int finish = me.getOffset() + me.getLength();
 			//add previous not entity part
 			messageToForward += textMessage.substring(previousStop, start);
-			//TODO: put <> based on entityType
 			switch(me.getType()) {
 				case "mention":
 				case "hashtag":
@@ -484,7 +480,7 @@ public class UpdateTask implements Runnable {
 		try {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
+			logger.error("Error sending text message");
 			e.printStackTrace();
 		}
     }
@@ -503,7 +499,7 @@ public class UpdateTask implements Runnable {
 		try {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
+			logger.error("Error sending list of users");
 			e.printStackTrace();
 		}
 		
@@ -526,7 +522,7 @@ public class UpdateTask implements Runnable {
 		try {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
+			logger.error("Error sending list of chats");
 			e.printStackTrace();
 		}	
     }
@@ -544,7 +540,7 @@ public class UpdateTask implements Runnable {
 		try {
 			bot.kickMember(kickChatMember);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
+			logger.error("Error kicking chat member");
 			e.printStackTrace();
 		}
     }
@@ -635,7 +631,7 @@ public class UpdateTask implements Runnable {
 		try {
 			bot.sendMessage(reply);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
+			logger.error("Error sending db user info");
 			e.printStackTrace();
 		}
     }
@@ -645,7 +641,7 @@ public class UpdateTask implements Runnable {
 		try {
 			botId = bot.getMe().getId();
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
+			logger.error("Error getting bot id");
 			e.printStackTrace();
 		}
 		return botId;
@@ -658,7 +654,7 @@ public class UpdateTask implements Runnable {
 		try {
 			admins = bot.getChatAdministrators(getChatAdministrators);
 		} catch (TelegramApiException e) {
-			// TODO Auto-generated catch block
+			logger.error("Error checking if bot is chat admin");
 			e.printStackTrace();
 		}
 		for(ChatMember admin : admins) {
