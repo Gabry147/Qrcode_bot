@@ -8,6 +8,7 @@ import gabry147.bots.broadcaster_bot.entities.extra.ChatRole;
 import gabry147.bots.broadcaster_bot.entities.extra.UserRole;
 
 import org.apache.log4j.Logger;
+import org.telegram.telegrambots.api.methods.ForwardMessage;
 import org.telegram.telegrambots.api.methods.groupadministration.GetChatAdministrators;
 import org.telegram.telegrambots.api.methods.groupadministration.GetChatMember;
 import org.telegram.telegrambots.api.methods.groupadministration.KickChatMember;
@@ -121,8 +122,8 @@ public class UpdateTask implements Runnable {
 			String command = commandSplit[0].substring(1).toUpperCase();
 
 			if( command.equals( "START" ) ) {
-				//save user that start bot
-				updateUserDbInfo(message.getFrom());
+				//save user and set notification to true
+				updateUserDbAndNotificationInfo(message.getFrom(), Boolean.TRUE);
 				sendTelegramMessage(chatId, "Welcome! This bot help to create a protected community of chats.\n"
 						+ "You must be approved to use the functionalities of this bot");
 				return;
@@ -139,10 +140,18 @@ public class UpdateTask implements Runnable {
 						sendCommandInfoList(chatId);
 						return;
 					}
+					else if( command.equals( PrivateCommand.NOTIFICATIONOFF.toString() ) ) {
+						updateUserDbAndNotificationInfo(message.getFrom(), Boolean.FALSE);
+						sendTelegramMessage(chatId, 
+								"Notification disabled. /start to enable them."
+						);
+						return;
+					}
 					else if(CommandEntity.getById(command) != null) {
 						sendTelegramHtmlMessage(chatId,
 								CommandEntity.getById(command).getBody(),
 								true);
+						return;
 					}
     			}
 				/*
@@ -180,6 +189,7 @@ public class UpdateTask implements Runnable {
     				if( command.equals( PrivateCommand.SETCHAT.toString() ) ) {
     					String chatType = alphanumericalSplit[1].toUpperCase();
     					setChat(chatId, chatEntity, botId, chatType, message);
+    					return;
     				}
     				else if( command.equals( PrivateCommand.REMOVECHAT.toString() ) ) {
     					if(alphanumericalSplit.length == 1) {
@@ -190,14 +200,21 @@ public class UpdateTask implements Runnable {
         					long chatToRemoveID = Long.valueOf(chatToRemoveStringID);
         					removeChat(chatToRemoveID, chatId);
     					}
+    					return;
     					
     				}
     				else if( command.equals( PrivateCommand.CHATS.toString() ) ) {
     					List<ChatEntity> chats = ChatEntity.getAll();
     					sendChatInfoList(chatId, chats);
+    					return;
     				}
     				else if( command.equals( PrivateCommand.SENDMESSAGE.toString() ) ) {
-    					//TODO
+    					if(message.isReply()) {
+    						sendBroadcastMessage(message.getReplyToMessage());
+    					}
+    					else {
+    						sendTelegramMessage(chatId, "Nothing to send");
+    					}
     					return;
     				}
     				else if( command.equals( PrivateCommand.SETCOMMAND.toString() ) ) {
@@ -207,7 +224,7 @@ public class UpdateTask implements Runnable {
     				}
     				else if( command.equals( PrivateCommand.DELETECOMMAND.toString() ) ) {
     					if(alphanumericalSplit.length != 2 ) {
-    						//TODO
+    						sendTelegramMessage(chatId, "Send a command to delete");
     						return;
     					}
     					String commandId = alphanumericalSplit[1].toUpperCase();
@@ -221,11 +238,22 @@ public class UpdateTask implements Runnable {
     				if( command.equals( PrivateCommand.USERS.toString() ) ) {
     					List<UserEntity> members = UserEntity.getAll();
     					sendUserInfoList(chatId, members);
+    					return;
     				}
     				else if( command.equals( PrivateCommand.DELETEUSER.toString() ) ) {
     					String userToDeleteString = alphanumericalSplit[1];
     					long userToDeleteID = Long.valueOf(userToDeleteString);
     					deleteUser(chatId, userToDeleteID);
+    					return;
+    				}
+    				else if( command.equals( PrivateCommand.SETBACKLOG.toString() ) ) {
+    					if(chatEntity == null) {
+    						setChatBacklog(message.getChat());
+    					}
+    					else {
+    						sendTelegramMessage(chatId, "Chat already set!");
+    					}
+    					
     					return;
     				}
     			}
@@ -236,14 +264,24 @@ public class UpdateTask implements Runnable {
         				User forwardedUser = message.getForwardFrom();
         				UserEntity forwarderDBuser = UserEntity.getById(forwardedUser.getId().longValue());
         				String role = "NOT REGISTERED";
-        				if(forwarderDBuser != null) role = forwarderDBuser.getRole().toString();
+        				if(forwarderDBuser != null) {
+        					role = forwarderDBuser.getRole().toString();
+        					updateUserDbInfo(forwardedUser);
+        				}
+        				else {
+        					//unknow user, notification set to false
+        					updateUserDbAndNotificationInfo(forwardedUser, false);
+        				}
         				updateUserDbInfo(forwardedUser);
         				sendTelegramUserInfo(chatId, forwardedUser, role);
         				return;
         			}
     			}   			
 
-    		} //end if userEntity != null			
+    		} //end if userEntity != null	
+			
+    		//private message doesn't enter in any return, backlog for understanding why
+    		backlog(message);
     	} //end if update.hasMessage()
     } // end run
 
@@ -277,7 +315,7 @@ public class UpdateTask implements Runnable {
 		String textMessage = message.getText();
 		String messageToForward = "";
 		List<MessageEntity> entities = message.getEntities();
-		MessageEntity firstCommand = entities.remove(0);
+		entities.remove(0);
 		//need a +1 to skip \n. Also, TG gives error is firstchar is \n
 		int previousStop = textMessage.indexOf("\n")+1;
 		for(MessageEntity me : entities) {
@@ -326,6 +364,10 @@ public class UpdateTask implements Runnable {
     }
     
     private void updateUserDbInfo(User user) {
+    	updateUserDbAndNotificationInfo(user, null);
+    }
+    	
+    private void updateUserDbAndNotificationInfo(User user, Boolean notification) {
     	UserEntity dbUser = UserEntity.getById(user.getId().longValue());
     	if(dbUser == null) {
     		dbUser = new UserEntity();
@@ -333,6 +375,9 @@ public class UpdateTask implements Runnable {
     		dbUser.setRole(UserRole.NORMAL);
     	}
 		dbUser.setUsername(user.getUserName());
+		if(notification != null) {
+			dbUser.setNotify(notification.booleanValue());
+		}
     	UserEntity.saveUser(dbUser);
     }
     
@@ -367,7 +412,7 @@ public class UpdateTask implements Runnable {
 		String text = "";
 		
 		for(UserEntity u : members) {
-			text = text + "@"+sanitize(u.getUsername()) + "  <code>"+u.getUserId()+"</code>  "+sanitize(u.getRole().toString())+"\n";
+			text = text + "@"+sanitize(u.getUsername()) + " "+ u.isNotify() +"  <code>"+u.getUserId()+"</code>  "+sanitize(u.getRole().toString())+"\n";
 		}
 		
 		reply.setText(text);		
@@ -512,7 +557,7 @@ public class UpdateTask implements Runnable {
 		}
     }
     
-    private void sendUserInfo(long chatId, UserEntity user) {
+    private void sendUserDbInfo(long chatId, UserEntity user) {
     	SendMessage reply = new SendMessage();
 		reply.setChatId(chatId);
 		reply.enableHtml(true);
@@ -521,7 +566,8 @@ public class UpdateTask implements Runnable {
 		reply.setText(
 				"Username: " + username + "\n" +
 				"<code>" + user.getUserId() +"</code>\n" +
-				"Role: " + sanitize(user.getRole().toString())
+				"Role: " + sanitize(user.getRole().toString()) + "\n" +
+				"Notification ON: " + user.isNotify()
 				);
 		try {
 			bot.sendMessage(reply);
@@ -564,7 +610,8 @@ public class UpdateTask implements Runnable {
 			logger.info("Approved: "+userToPromoteID);
 			userToPromote = new UserEntity();
 			userToPromote.setUserId(userToPromoteID);
-			userToPromote.setRole(UserRole.ACCEPTED);   						
+			userToPromote.setRole(UserRole.ACCEPTED);
+			userToPromote.setNotify(false);
 		}
 		else {
 			if(senderUser.getRole().compareTo(userToPromote.getRole()) < 0) {
@@ -581,7 +628,7 @@ public class UpdateTask implements Runnable {
 			}
 		}
 		UserEntity.saveUser(userToPromote);
-		sendUserInfo(chatId, userToPromote);
+		sendUserDbInfo(chatId, userToPromote);
     }
     
     private void demoteUser(long chatId, long userToDemoteID, UserEntity senderUser) {
@@ -619,7 +666,7 @@ public class UpdateTask implements Runnable {
 			}
 		}
 		UserEntity.saveUser(userToDemote);
-		sendUserInfo(chatId, userToDemote);
+		sendUserDbInfo(chatId, userToDemote);
     }
 
     private void banUser(long chatId, long userToBanID, UserEntity senderUser) {
@@ -637,7 +684,7 @@ public class UpdateTask implements Runnable {
 		UserEntity.saveUser(userToBan);
 		sendTelegramMessage(chatId, "Banning...");
 		banFromChats(userToBan.getUserId());
-		sendUserInfo(chatId, userToBan);
+		sendUserDbInfo(chatId, userToBan);
     }
     
     private void pinMessage(long chatId, int botId, Message message) {
@@ -719,28 +766,55 @@ public class UpdateTask implements Runnable {
 		}		
 	}
 
+	private void sendBroadcastMessage(Message message) {
+		List<UserEntity> allUser = UserEntity.getAll();
+		for(UserEntity u : allUser) {
+			if(u.isNotify() == null) {
+				//do nothing
+			}
+			else if (u.isNotify()) {
+				if(u.getRole().compareTo(UserRole.ACCEPTED) <= 0) {
+					ForwardMessage broadcast = new ForwardMessage();
+					broadcast.setChatId(u.getUserId());
+					broadcast.setMessageId(message.getMessageId());
+					broadcast.setFromChatId(message.getChatId());
+					try {
+						bot.forwardMessage(broadcast);
+						Thread.sleep(10);
+					} catch (TelegramApiException e) {
+						logger.error("Error sending text message");
+						e.printStackTrace();
+					} catch (InterruptedException e) {
+						logger.error("Error waiting sending text message");
+						e.printStackTrace();
+					}
+				}
+			}
+		}		
+	}
+	
 	private void setCommand(String[] commandAndBody, long chatId, Message message) {
 		if(commandAndBody.length < 2) {
-			//TODO
+			sendTelegramMessage(chatId, "Not enough parameters");
 			logger.info("setcommand error, \\n not found");
 			return;
 		}
 		String[] setAndCommandId = commandAndBody[0].split(" ");
 		if(setAndCommandId.length != 2) {
-			//TODO
+			sendTelegramMessage(chatId, "Command text not found");
 			logger.info("setcommand error, commandId not found");
 			return;
 		}
 		String commandId = setAndCommandId[1].toUpperCase();
 		Pattern p = Pattern.compile("[^a-zA-Z0-9]");
 		if(p.matcher(commandId).find()) {
-			//TODO
+			sendTelegramMessage(chatId, "Command is not alphanumerical");
 			logger.info("setcommand error, commandId not alphanumerical");
 			return;
 		}
 		for(PrivateCommand pc : PrivateCommand.values()) {
 			if((commandId.toUpperCase()) == pc.toString()) {
-				//TODO
+				sendTelegramMessage(chatId, "Reserved command");
 				logger.info("setcommand error, reserved command");
 				return;
 			}
@@ -780,9 +854,40 @@ public class UpdateTask implements Runnable {
 			sendTelegramMessage(chatId, "No user to delete");
 		}
 		else {
-			sendUserInfo(chatId, userToDelete);
+			sendUserDbInfo(chatId, userToDelete);
 			UserEntity.deleteUser(userToDelete);
 			sendTelegramMessage(chatId, "Deleted!");
 		}	
+	}
+
+	private void setChatBacklog(Chat chat) {
+		ChatEntity chatEntity = new ChatEntity();
+		chatEntity.setAdded(new Date());
+		chatEntity.setChatId(chat.getId());
+		chatEntity.setTitle(chat.getTitle());
+		chatEntity.setRole(ChatRole.BACKLOG);
+		ChatEntity.saveChat(chatEntity);
+		sendTelegramChatInfo(chat.getId(), chatEntity);		
+	}
+	
+	private void backlog(Message message) {
+		for(ChatEntity c : ChatEntity.getAll()) {
+			if(c.getRole().compareTo(ChatRole.BACKLOG) == 0) {
+				sendTelegramMessage(c.getChatId(), 
+						"Message from @" + message.getFrom().getUserName() +" ("+ message.getFrom().getId() +"):");
+				ForwardMessage broadcast = new ForwardMessage();
+				broadcast.setChatId(c.getChatId());
+				broadcast.setMessageId(message.getMessageId());
+				broadcast.setFromChatId(message.getChatId());
+				try {
+					bot.forwardMessage(broadcast);
+				} catch (TelegramApiException e) {
+					logger.error("Error sending text message");
+					e.printStackTrace();
+				}
+			}
+		}
+		
+
 	}
 }

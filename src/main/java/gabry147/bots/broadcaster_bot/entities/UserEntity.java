@@ -25,7 +25,7 @@ public class UserEntity implements Serializable {
     private UserRole role;
     
     @Column(name="notify")
-    private boolean notify;
+    private Boolean notify; //boolean doesn't work, null problem
 
     public static UserEntity getById(Long id){
         EntityManager em= Broadcaster_BotDao.instance.createEntityManager();
@@ -87,11 +87,11 @@ public class UserEntity implements Serializable {
         this.role = role;
     }
 
-	public boolean isNotify() {
+	public Boolean isNotify() {
 		return notify;
 	}
 
-	public void setNotify(boolean notify) {
+	public void setNotify(Boolean notify) {
 		this.notify = notify;
 	}
 }
