@@ -57,7 +57,7 @@ public class UpdateTask implements Runnable {
     				List<User> newUsers = update.getMessage().getNewChatMembers();
     				for(User u : newUsers) {
     					if(u.getId() == botId) {
-    						if(userEntity.getRole().compareTo(UserRole.APPROVER) <=0) {
+    						if(userEntity.getRole().compareTo(UserRole.ADMIN) <=0) {
     							sendTelegramMessage(chatId, "Ready to work!");
     						}
     						else {
@@ -72,38 +72,15 @@ public class UpdateTask implements Runnable {
     					}  					
     					else if(chatEntity != null) {
     		    			updateChatDbInfo(message.getChat());
-    	    				if( ! botIsAdmin(chatId, botId)) {
-    	    					sendTelegramMessage(chatId, "Chat seems to be set, but bot is not admin!");
-    	    					return;
-    	    				}
-    	    				UserEntity entryUser = UserEntity.getById(u.getId().longValue());
-    						if(chatEntity.getRole().compareTo(ChatRole.PROTECTED) <= 0) {   							
-    							if(entryUser == null) {
-    								kickUnapprovedUser(chatId, u.getId());
-    								return;
-    							}
-    							else if (entryUser.getRole().compareTo(UserRole.ACCEPTED) > 0) {
-    								kickUnapprovedUser(chatId, u.getId());
-    								return;
-    							}
-    							else if (
-    									(entryUser.getRole().compareTo(UserRole.ADMIN) > 0 ) &&
-    									(chatEntity.getRole().compareTo(ChatRole.ADMIN) <= 0)
-    									) {
-    								kickUnapprovedUser(chatId, u.getId());
-    								return;
-    							}
-    						}
-    						
+    		    			protectChat(chatId, botId, chatEntity, u);
     					}
     				}    				
     			} //end if newMembers
-    			//message from group chat with that is not a new member
-    			//if it's not a command, ignore it
+				//chat creation or media, nothing to do atm
     			if(! message.hasText()) {
-    				//chat creation or media, nothing to do atm
     				return;
     			}
+    			//if it's not a command, ignore it
     			if(! message.getText().startsWith("/")) {
     				//normal group chat message (probably bot is tagged and/or admin), nothing to do atm
     				return;
@@ -140,10 +117,12 @@ public class UpdateTask implements Runnable {
                     return;
                 }
 			}
-			// save command and remove /
+			// save command and remove "/"
 			String command = commandSplit[0].substring(1).toUpperCase();
 
 			if( command.equals( "START" ) ) {
+				//save user that start bot
+				updateUserDbInfo(message.getFrom());
 				sendTelegramMessage(chatId, "Welcome! This bot help to create a protected community of chats.\n"
 						+ "You must be approved to use the functionalities of this bot");
 				return;
@@ -151,6 +130,9 @@ public class UpdateTask implements Runnable {
 			
 			//user is in db
 			if(userEntity != null) {
+				/*
+				 * Commands for ACCEPTED
+				 */
 				if(userEntity.getRole().compareTo(UserRole.ACCEPTED) <= 0) {
     				//command accepted+ (custom commands)
 					if( command.equals( PrivateCommand.COMMANDS.toString() ) ) {
@@ -163,192 +145,50 @@ public class UpdateTask implements Runnable {
 								true);
 					}
     			}
+				/*
+				 *  Commands for APPROVER
+				 */
     			if(userEntity.getRole().compareTo(UserRole.APPROVER) <= 0) {
     				if( command.equals( PrivateCommand.PROMOTE.toString() ) ) {
     					String userToPromoteStringID = alphanumericalSplit[1];
     					long userToPromoteID = Long.valueOf(userToPromoteStringID);
-    					UserEntity userToPromote = UserEntity.getById(userToPromoteID);
-    					if(userToPromote == null) {
-    						logger.info("Approved: "+userToPromoteID);
-    						userToPromote = new UserEntity();
-    						userToPromote.setUserId(userToPromoteID);
-    						userToPromote.setRole(UserRole.ACCEPTED);   						
-    					}
-    					else {
-    						if(userEntity.getRole().compareTo(userToPromote.getRole()) < 0) {
-    							UserRole[] roles = UserRole.values();
-    							UserRole previousRole = UserRole.OWNER;
-    							for(UserRole currentRole : roles) {
-    								if(currentRole.compareTo(userToPromote.getRole()) == 0) {
-    									userToPromote.setRole(previousRole);
-    									logger.info("Promote: "+userToPromoteID);
-    									break;
-    								}
-    								previousRole = currentRole;
-    							}
-    						}
-    					}
-    					UserEntity.saveUser(userToPromote);
-    					sendUserInfo(chatId, userToPromote);
+    					promoteUser(chatId, userToPromoteID, userEntity);
     					return;
     					
     				}
     				else if( command.equals( PrivateCommand.DEMOTE.toString() ) ) {
     					String userToDemoteStringID = alphanumericalSplit[1];
     					long userToDemoteID = Long.valueOf(userToDemoteStringID);
-    					UserEntity userToDemote = UserEntity.getById(userToDemoteID);
-    					if(userToDemote == null) {
-    						logger.info("Approved: "+userToDemoteID);
-    						userToDemote = new UserEntity();
-    						userToDemote.setUserId(userToDemoteID);
-    						userToDemote.setRole(UserRole.BANNED);
-    						sendTelegramMessage(chatId, 
-    								"Unknown user, demote to BAN status. If it's an error, send:\n"
-    								+ "<code>/"+PrivateCommand.PROMOTE+" "+userToDemoteID+"</code>");
-    					}
-    					else {
-    						if(userEntity.getRole().compareTo(userToDemote.getRole()) < 0) {
-    							UserRole[] roles = UserRole.values();
-    							boolean previousRole = false;
-    							for(UserRole role : roles) {
-    								if(previousRole) {
-    									userToDemote.setRole(role);
-    									logger.info("Demote: "+userToDemoteID);
-    									break;
-    								}
-    								if(role.compareTo(userToDemote.getRole()) == 0) {
-    									previousRole = true;
-    								}
-    							}
-    						}
-    						else if (userEntity.getRole().compareTo(UserRole.OWNER) == 0) {
-    							if(userToDemote.getRole().compareTo(UserRole.OWNER) == 0) {
-    								userToDemote.setRole(UserRole.ADMIN);
-									logger.info("Demote owner: "+userToDemoteID);
-    							}
-    							
-    						}
-    					}
-    					UserEntity.saveUser(userToDemote);
-    					sendUserInfo(chatId, userToDemote);
+    					demoteUser(chatId, userToDemoteID, userEntity);
     					return;
     				}
     				else if( command.equals( PrivateCommand.BAN.toString() ) ) {
     					String userToBanStringID = alphanumericalSplit[1];
     					long userToBanID = Long.valueOf(userToBanStringID);
-    					UserEntity userToBan = UserEntity.getById(userToBanID);
-    					if(userToBan == null) {
-    						logger.info("Ban: "+userToBanID);
-    						userToBan = new UserEntity();
-    						userToBan.setUserId(userToBanID);
-    					}
-    					else if( userEntity.getRole().compareTo(userToBan.getRole()) > 0) {
-    						sendTelegramMessage(chatId, "You don't have permission");
-    						return;
-    					}
-    					userToBan.setRole(UserRole.BANNED);
-    					UserEntity.saveUser(userToBan);
-    					sendTelegramMessage(chatId, "Banning...");
-    					banFromChats(userToBan.getUserId());
-    					sendUserInfo(chatId, userToBan);
+    					banUser(chatId, userToBanID, userEntity);
     					return;
     				}
     				else if( command.equals( PrivateCommand.PIN.toString() ) ) {
-    					if(! botIsAdmin(chatId, botId)) {
-    						sendTelegramMessage(chatId, "Bot is not chat admin");
-    						return;
-    					}
-    					Message messageToPin = message.getReplyToMessage();
-    					if(messageToPin == null) {
-    						sendTelegramMessage(chatId, "Nothing to pin. Please answer /"+PrivateCommand.PIN+" to the message you want to pin.");
-    						return;
-    					}
-    					PinChatMessage pinChatMessage = new PinChatMessage();
-    					pinChatMessage.setChatId(chatId);
-    					pinChatMessage.setMessageId(messageToPin.getMessageId());
-    					try {
-							bot.pinChatMessage(pinChatMessage);
-						} catch (TelegramApiException e) {
-							logger.error("error on pin even if admin");
-							e.printStackTrace();
-						}
+    					pinMessage(chatId, botId, message);
     					return;
     				}
     			}
+    			/*
+    			 *  Command for ADMIN
+    			 */
     			if(userEntity.getRole().compareTo(UserRole.ADMIN) <= 0) {
     				if( command.equals( PrivateCommand.SETCHAT.toString() ) ) {
     					String chatType = alphanumericalSplit[1].toUpperCase();
-    					System.out.println(chatType);
-    					if(chatEntity != null) {
-    						sendTelegramMessage(chatId, "Chat already set for: "+chatEntity.getRole().toString());
-    					}
-    					else {
-    						ChatRole chatRole = null;
-    						if(chatType.equals(ChatRole.ADMIN.toString())) {
-    							chatRole = ChatRole.ADMIN;
-    						}
-    						else if(chatType.equals(ChatRole.PROTECTED.toString())) {
-    							chatRole = ChatRole.PROTECTED;
-    						}
-    						if(chatRole != null) {
-    							GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
-        	    				getChatAdministrators.setChatId(chatId);
-        	    				List<ChatMember> admins = null;
-        	    				try {
-        							admins = bot.getChatAdministrators(getChatAdministrators);
-        						} catch (TelegramApiException e) {
-        							logger.error("Error getting chat admins");
-        							e.printStackTrace();
-        						}
-        	    				boolean isAdmin = false;
-        	    				for(ChatMember admin : admins) {
-        	    					if(admin.getUser().getId() == botId) isAdmin = true;
-        	    				}
-        	    				//if is not admin, no need to continue
-        	    				if( ! isAdmin) {
-        	    					sendTelegramMessage(chatId, "Bot must be chat admin for this feature");
-        	    					return;
-        	    				}
-        						chatEntity = new ChatEntity();
-        						chatEntity.setAdded(new Date());
-        						chatEntity.setChatId(chatId);
-        						chatEntity.setTitle(message.getChat().getTitle());
-        						chatEntity.setRole(chatRole);
-        						ChatEntity.saveChat(chatEntity);
-        						sendTelegramChatInfo(chatId, chatEntity);
-        						return;
-    						}
-    						else {
-    							sendTelegramMessage(chatId, "Chat role not recognized");
-    						}
-    					}
-    					
+    					setChat(chatId, chatEntity, botId, chatType, message);
     				}
     				else if( command.equals( PrivateCommand.REMOVECHAT.toString() ) ) {
-    					System.out.println(alphanumericalSplit.length);
     					if(alphanumericalSplit.length == 1) {
-    						if(chatEntity == null) {
-        						sendTelegramMessage(chatId, "Chat not set, nothing to remove");
-        					}
-        					else {
-        						sendTelegramMessage(chatId, "Chat with role: "+chatEntity.getRole().toString()+" will be removed"); 
-        						ChatEntity.removeChat(chatEntity);
-        						sendTelegramMessage(chatId, "Chat removed");    						
-        					}
+    						removeThisChat(chatId, chatEntity);
     					}
     					else {
     						String chatToRemoveStringID = alphanumericalSplit[1];
         					long chatToRemoveID = Long.valueOf(chatToRemoveStringID);
-        					ChatEntity chatToRemove = ChatEntity.getById(chatToRemoveID);
-        					if(chatToRemove == null) {
-        						sendTelegramMessage(chatId, "Chat ID not found, nothing to remove");
-        					}
-        					else {
-        						sendTelegramMessage(chatId, "Chat "+ chatToRemove.getTitle() +" with role: "+chatToRemove.getRole().toString()+" will be removed"); 
-        						sendTelegramMessage(chatToRemove.getChatId(), "Chat protection will be disabled");
-        						ChatEntity.removeChat(chatToRemove);
-        						sendTelegramMessage(chatId, "Chat removed");  
-        					}
+        					removeChat(chatToRemoveID, chatId);
     					}
     					
     				}
@@ -362,85 +202,30 @@ public class UpdateTask implements Runnable {
     				}
     				else if( command.equals( PrivateCommand.SETCOMMAND.toString() ) ) {
     					String[] commandAndBody = message.getText().split("\n");
-    					if(commandAndBody.length < 2) {
-    						//TODO
-    						logger.info("setcommand error, \\n not found");
-    						return;
-    					}
-    					String[] setAndCommandId = commandAndBody[0].split(" ");
-    					if(setAndCommandId.length != 2) {
-    						//TODO
-    						logger.info("setcommand error, commandId not found");
-    						return;
-    					}
-    					String commandId = setAndCommandId[1].toUpperCase();
-    					Pattern p = Pattern.compile("[^a-zA-Z0-9]");
-    					if(p.matcher(commandId).find()) {
-    						//TODO
-    						logger.info("setcommand error, commandId not alphanumerical");
-    						return;
-    					}
-    					for(PrivateCommand pc : PrivateCommand.values()) {
-    						if((commandId.toUpperCase()) == pc.toString()) {
-    							//TODO
-    							logger.info("setcommand error, reserved command");
-    							return;
-    						}
-    					}
-    					
-    					CommandEntity proposedCommand = CommandEntity.getById(commandId);
-    					if(proposedCommand == null) {
-    						proposedCommand = new CommandEntity();
-    						proposedCommand.setCommandId(commandId);
-    					}
-    					else {
-    						sendTelegramHtmlMessage(chatId,
-    								"<b>Command already set, previous body:</b>\n" + proposedCommand.getBody(), 
-    								true);
-    					}
-    					proposedCommand.setBody(
-    							processMessageToBeStorable(message)
-    							);
-    					CommandEntity.saveCommand(proposedCommand);
-    					sendTelegramMessage(chatId, "Command set!");
+    					setCommand(commandAndBody, chatId, message);
     					return;
     				}
     				else if( command.equals( PrivateCommand.DELETECOMMAND.toString() ) ) {
-    					if(alphanumericalSplit.length < 2) {
+    					if(alphanumericalSplit.length != 2 ) {
     						//TODO
     						return;
     					}
     					String commandId = alphanumericalSplit[1].toUpperCase();
-    					CommandEntity commandToDelete = CommandEntity.getById(commandId);
-    					if(commandToDelete != null) {
-    						CommandEntity.deleteCommand(commandToDelete);
-    						sendTelegramMessage(chatId, "Command deleted!");
-    					}
-    					else {
-    						sendTelegramMessage(chatId, "Nothing to delete!");
-    					}
+    					deleteCommand(chatId, commandId);
     				}
     			}
+    			/*
+    			 *  Command for OWNER
+    			 */
     			if(userEntity.getRole().compareTo(UserRole.OWNER) <= 0) {
-    				if( command.equals( PrivateCommand.SETBACKLOG.toString() ) ) {
-    					return;
-    				}
-    				else if( command.equals( PrivateCommand.USERS.toString() ) ) {
+    				if( command.equals( PrivateCommand.USERS.toString() ) ) {
     					List<UserEntity> members = UserEntity.getAll();
     					sendUserInfoList(chatId, members);
     				}
     				else if( command.equals( PrivateCommand.DELETEUSER.toString() ) ) {
     					String userToDeleteString = alphanumericalSplit[1];
     					long userToDeleteID = Long.valueOf(userToDeleteString);
-    					UserEntity userToDelete = UserEntity.getById(userToDeleteID);
-    					if(userToDelete == null) {
-    						sendTelegramMessage(chatId, "No user to delete");
-    					}
-    					else {
-    						sendUserInfo(chatId, userToDelete);
-    						UserEntity.deleteUser(userToDelete);
-    						sendTelegramMessage(chatId, "Deleted!");
-    					}
+    					deleteUser(chatId, userToDeleteID);
     					return;
     				}
     			}
@@ -461,6 +246,32 @@ public class UpdateTask implements Runnable {
     		} //end if userEntity != null			
     	} //end if update.hasMessage()
     } // end run
+
+	private void protectChat(long chatId, int botId, ChatEntity chatEntity, User u) {
+		if( ! botIsAdmin(chatId, botId)) {
+			sendTelegramMessage(chatId, "Chat seems to be set, but bot is not admin!");
+			return;
+		}
+		UserEntity entryUser = UserEntity.getById(u.getId().longValue());
+		if(chatEntity.getRole().compareTo(ChatRole.PROTECTED) <= 0) {   							
+			if(entryUser == null) {
+				kickUnapprovedUser(chatId, u.getId());
+				return;
+			}
+			else if (entryUser.getRole().compareTo(UserRole.ACCEPTED) > 0) {
+				kickUnapprovedUser(chatId, u.getId());
+				return;
+			}
+			else if (
+					(entryUser.getRole().compareTo(UserRole.ADMIN) > 0 ) &&
+					(chatEntity.getRole().compareTo(ChatRole.ADMIN) <= 0)
+					) {
+				kickUnapprovedUser(chatId, u.getId());
+				return;
+			}
+		}
+		
+	}
 
 	private String processMessageToBeStorable(Message message) {
 		String textMessage = message.getText();
@@ -599,7 +410,7 @@ public class UpdateTask implements Runnable {
 		
 		List<CommandEntity> commands = CommandEntity.getAll();
 		for(CommandEntity c : commands) {
-			text = text + "/" +c.getCommandId() + "\n";
+			text = text + "/" +c.getCommandId().toLowerCase() + "\n";
 		}
 		
 		reply.setText(text);		
@@ -746,4 +557,232 @@ public class UpdateTask implements Runnable {
 		}
 		return false;
     }
+    
+    private void promoteUser(long chatId, long userToPromoteID, UserEntity senderUser) {
+    	UserEntity userToPromote = UserEntity.getById(userToPromoteID);
+		if(userToPromote == null) {
+			logger.info("Approved: "+userToPromoteID);
+			userToPromote = new UserEntity();
+			userToPromote.setUserId(userToPromoteID);
+			userToPromote.setRole(UserRole.ACCEPTED);   						
+		}
+		else {
+			if(senderUser.getRole().compareTo(userToPromote.getRole()) < 0) {
+				UserRole[] roles = UserRole.values();
+				UserRole previousRole = UserRole.OWNER;
+				for(UserRole currentRole : roles) {
+					if(currentRole.compareTo(userToPromote.getRole()) == 0) {
+						userToPromote.setRole(previousRole);
+						logger.info("Promote: "+userToPromoteID);
+						break;
+					}
+					previousRole = currentRole;
+				}
+			}
+		}
+		UserEntity.saveUser(userToPromote);
+		sendUserInfo(chatId, userToPromote);
+    }
+    
+    private void demoteUser(long chatId, long userToDemoteID, UserEntity senderUser) {
+    	UserEntity userToDemote = UserEntity.getById(userToDemoteID);
+		if(userToDemote == null) {
+			logger.info("Approved: "+userToDemoteID);
+			userToDemote = new UserEntity();
+			userToDemote.setUserId(userToDemoteID);
+			userToDemote.setRole(UserRole.BANNED);
+			sendTelegramMessage(chatId, 
+					"Unknown user, demote to BAN status. If it's an error, send:\n"
+					+ "<code>/"+PrivateCommand.PROMOTE+" "+userToDemoteID+"</code>");
+		}
+		else {
+			if(senderUser.getRole().compareTo(userToDemote.getRole()) < 0) {
+				UserRole[] roles = UserRole.values();
+				boolean previousRole = false;
+				for(UserRole role : roles) {
+					if(previousRole) {
+						userToDemote.setRole(role);
+						logger.info("Demote: "+userToDemoteID);
+						break;
+					}
+					if(role.compareTo(userToDemote.getRole()) == 0) {
+						previousRole = true;
+					}
+				}
+			}
+			else if (senderUser.getRole().compareTo(UserRole.OWNER) == 0) {
+				if(userToDemote.getRole().compareTo(UserRole.OWNER) == 0) {
+					userToDemote.setRole(UserRole.ADMIN);
+					logger.info("Demote owner: "+userToDemoteID);
+				}
+				
+			}
+		}
+		UserEntity.saveUser(userToDemote);
+		sendUserInfo(chatId, userToDemote);
+    }
+
+    private void banUser(long chatId, long userToBanID, UserEntity senderUser) {
+    	UserEntity userToBan = UserEntity.getById(userToBanID);
+		if(userToBan == null) {
+			logger.info("Ban: "+userToBanID);
+			userToBan = new UserEntity();
+			userToBan.setUserId(userToBanID);
+		}
+		else if( senderUser.getRole().compareTo(userToBan.getRole()) > 0) {
+			sendTelegramMessage(chatId, "You don't have permission");
+			return;
+		}
+		userToBan.setRole(UserRole.BANNED);
+		UserEntity.saveUser(userToBan);
+		sendTelegramMessage(chatId, "Banning...");
+		banFromChats(userToBan.getUserId());
+		sendUserInfo(chatId, userToBan);
+    }
+    
+    private void pinMessage(long chatId, int botId, Message message) {
+    	if(! botIsAdmin(chatId, botId)) {
+			sendTelegramMessage(chatId, "Bot is not chat admin");
+			return;
+		}
+		Message messageToPin = message.getReplyToMessage();
+		if(messageToPin == null) {
+			sendTelegramMessage(chatId, "Nothing to pin. Please answer /"+PrivateCommand.PIN+" to the message you want to pin.");
+			return;
+		}
+		PinChatMessage pinChatMessage = new PinChatMessage();
+		pinChatMessage.setChatId(chatId);
+		pinChatMessage.setMessageId(messageToPin.getMessageId());
+		try {
+			bot.pinChatMessage(pinChatMessage);
+		} catch (TelegramApiException e) {
+			logger.error("error on pin even if admin");
+			e.printStackTrace();
+		}
+    }
+    
+	private void setChat(long chatId, ChatEntity chatEntity, int botId, String chatType, Message message) {
+		if(chatEntity != null) {
+			sendTelegramMessage(chatId, "Chat already set for: "+chatEntity.getRole().toString());
+		}
+		else {
+			ChatRole chatRole = null;
+			if(chatType.equals(ChatRole.ADMIN.toString())) {
+				chatRole = ChatRole.ADMIN;
+			}
+			else if(chatType.equals(ChatRole.PROTECTED.toString())) {
+				chatRole = ChatRole.PROTECTED;
+			}
+			if(chatRole != null) {
+				GetChatAdministrators getChatAdministrators = new GetChatAdministrators();
+				getChatAdministrators.setChatId(chatId);
+				if( ! botIsAdmin(chatId, botId)) {
+					sendTelegramMessage(chatId, "Bot must be chat admin for this feature");
+					return;
+				}
+				chatEntity = new ChatEntity();
+				chatEntity.setAdded(new Date());
+				chatEntity.setChatId(chatId);
+				chatEntity.setTitle(message.getChat().getTitle());
+				chatEntity.setRole(chatRole);
+				ChatEntity.saveChat(chatEntity);
+				sendTelegramChatInfo(chatId, chatEntity);
+				return;
+			}
+			else {
+				sendTelegramMessage(chatId, "Chat role not recognized");
+			}
+		}	
+	}
+
+	private void removeThisChat(long chatId, ChatEntity chatEntity) {
+		if(chatEntity == null) {
+			sendTelegramMessage(chatId, "Chat not set, nothing to remove");
+		}
+		else {
+			sendTelegramMessage(chatId, "Chat with role: "+chatEntity.getRole().toString()+" will be removed"); 
+			ChatEntity.removeChat(chatEntity);
+			sendTelegramMessage(chatId, "Chat removed");    						
+		}		
+	}
+
+	private void removeChat(long chatToRemoveID, long chatId) {
+		ChatEntity chatToRemove = ChatEntity.getById(chatToRemoveID);
+		if(chatToRemove == null) {
+			sendTelegramMessage(chatId, "Chat ID not found, nothing to remove");
+		}
+		else {
+			sendTelegramMessage(chatId, "Chat "+ chatToRemove.getTitle() +" with role: "+chatToRemove.getRole().toString()+" will be removed"); 
+			sendTelegramMessage(chatToRemove.getChatId(), "Chat protection will be disabled");
+			ChatEntity.removeChat(chatToRemove);
+			sendTelegramMessage(chatId, "Chat removed");  
+		}		
+	}
+
+	private void setCommand(String[] commandAndBody, long chatId, Message message) {
+		if(commandAndBody.length < 2) {
+			//TODO
+			logger.info("setcommand error, \\n not found");
+			return;
+		}
+		String[] setAndCommandId = commandAndBody[0].split(" ");
+		if(setAndCommandId.length != 2) {
+			//TODO
+			logger.info("setcommand error, commandId not found");
+			return;
+		}
+		String commandId = setAndCommandId[1].toUpperCase();
+		Pattern p = Pattern.compile("[^a-zA-Z0-9]");
+		if(p.matcher(commandId).find()) {
+			//TODO
+			logger.info("setcommand error, commandId not alphanumerical");
+			return;
+		}
+		for(PrivateCommand pc : PrivateCommand.values()) {
+			if((commandId.toUpperCase()) == pc.toString()) {
+				//TODO
+				logger.info("setcommand error, reserved command");
+				return;
+			}
+		}
+		
+		CommandEntity proposedCommand = CommandEntity.getById(commandId);
+		if(proposedCommand == null) {
+			proposedCommand = new CommandEntity();
+			proposedCommand.setCommandId(commandId);
+		}
+		else {
+			sendTelegramHtmlMessage(chatId,
+					"<b>Command already set, previous body:</b>\n" + proposedCommand.getBody(), 
+					true);
+		}
+		proposedCommand.setBody(
+				processMessageToBeStorable(message)
+				);
+		CommandEntity.saveCommand(proposedCommand);
+		sendTelegramMessage(chatId, "Command /"+proposedCommand.getCommandId().toLowerCase()+" set!");
+	}
+	
+	private void deleteCommand(long chatId, String commandId) {
+		CommandEntity commandToDelete = CommandEntity.getById(commandId);
+		if(commandToDelete != null) {
+			CommandEntity.deleteCommand(commandToDelete);
+			sendTelegramMessage(chatId, "Command deleted!");
+		}
+		else {
+			sendTelegramMessage(chatId, "Nothing to delete!");
+		}	
+	}
+
+	private void deleteUser(long chatId, long userToDeleteID) {
+		UserEntity userToDelete = UserEntity.getById(userToDeleteID);
+		if(userToDelete == null) {
+			sendTelegramMessage(chatId, "No user to delete");
+		}
+		else {
+			sendUserInfo(chatId, userToDelete);
+			UserEntity.deleteUser(userToDelete);
+			sendTelegramMessage(chatId, "Deleted!");
+		}	
+	}
 }

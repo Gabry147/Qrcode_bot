@@ -23,6 +23,9 @@ public class UserEntity implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(name="role")
     private UserRole role;
+    
+    @Column(name="notify")
+    private boolean notify;
 
     public static UserEntity getById(Long id){
         EntityManager em= Broadcaster_BotDao.instance.createEntityManager();
@@ -83,4 +86,12 @@ public class UserEntity implements Serializable {
     public void setRole(UserRole role) {
         this.role = role;
     }
+
+	public boolean isNotify() {
+		return notify;
+	}
+
+	public void setNotify(boolean notify) {
+		this.notify = notify;
+	}
 }
